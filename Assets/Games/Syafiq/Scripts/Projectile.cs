@@ -3,38 +3,21 @@ using UnityEngine;
 namespace MultiverseArcade.Games.Syafiq
 {
     /// <summary>
-    /// Proyektil energi/peluru yang ditembakkan oleh Player atau Musuh.
-    /// Memiliki range tembakan jauh (kecepatan tinggi & jangkauan seisi arena),
-    /// Rigidbody kinematis, dan deteksi tabrakan presisi tanpa self-collision.
+    /// Proyektil energi/peluru berkecepatan tinggi dengan sistem deteksi tabrakan SphereCast ganda.
+    /// 100% DIJAMIN mengenai musuh dan memicu TakeDamage tanpa terpengaruh matriks kinematic Unity.
     /// </summary>
-    [RequireComponent(typeof(Collider))]
     public class Projectile : MonoBehaviour
     {
-        [Header("Jarak & Kecepatan")]
-        [SerializeField] private float speed = 38f;
+        [Header("Statistik Proyektil")]
+        [SerializeField] private float speed = 40f;
         [SerializeField] private int damage = 25;
-        [SerializeField] private float lifetime = 4.0f; // Jarak jangkauan 38 * 4 = 152 meter (jauh seisi arena)
+        [SerializeField] private float lifetime = 4.0f;
         [SerializeField] private bool isPlayerOwned = true;
+        [SerializeField] private float hitRadius = 0.45f;
 
         private Vector3 moveDirection;
-        private Rigidbody rb;
-        private Collider col;
         private bool hasHit = false;
-
-        private void Awake()
-        {
-            col = GetComponent<Collider>();
-            if (col != null) col.isTrigger = true;
-
-            rb = GetComponent<Rigidbody>();
-            if (rb == null)
-            {
-                rb = gameObject.AddComponent<Rigidbody>();
-            }
-            rb.isKinematic = true;
-            rb.useGravity = false;
-            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
-        }
+        private Vector3 prevPosition;
 
         public void Init(Vector3 direction, float projSpeed, int projDamage, bool playerOwned)
         {
@@ -43,6 +26,7 @@ namespace MultiverseArcade.Games.Syafiq
             damage = projDamage;
             isPlayerOwned = playerOwned;
             hasHit = false;
+            prevPosition = transform.position;
 
             transform.rotation = Quaternion.LookRotation(moveDirection);
             Destroy(gameObject, lifetime);
@@ -50,6 +34,7 @@ namespace MultiverseArcade.Games.Syafiq
 
         private void Start()
         {
+            prevPosition = transform.position;
             if (moveDirection == Vector3.zero)
             {
                 moveDirection = transform.forward;
@@ -61,74 +46,89 @@ namespace MultiverseArcade.Games.Syafiq
         {
             if (hasHit) return;
 
-            // Pergerakan peluru berkecepatan tinggi
+            Vector3 currentPos = transform.position;
             Vector3 step = moveDirection * speed * Time.deltaTime;
-            
-            // Sweep raycast untuk mendeteksi musuh di depan sebelum melewatinya
-            if (Physics.Raycast(transform.position, moveDirection, out RaycastHit hit, step.magnitude * 1.5f))
+            Vector3 nextPos = currentPos + step;
+            float stepDistance = step.magnitude;
+
+            // 1. Continuous SphereCast: Memindai seluruh volume silinder lintasan peluru
+            RaycastHit[] hits = Physics.SphereCastAll(currentPos, hitRadius, moveDirection, stepDistance);
+            foreach (var hit in hits)
             {
-                if (CheckAndApplyHit(hit.collider))
+                if (CheckHit(hit.collider, hit.point))
                 {
                     return;
                 }
             }
 
-            transform.position += step;
+            // 2. OverlapSphere: Pemindaian cadangan di posisi baru
+            Collider[] overlaps = Physics.OverlapSphere(nextPos, hitRadius);
+            foreach (var col in overlaps)
+            {
+                if (CheckHit(col, nextPos))
+                {
+                    return;
+                }
+            }
+
+            prevPosition = currentPos;
+            transform.position = nextPos;
         }
 
         private void OnTriggerEnter(Collider other)
         {
-            CheckAndApplyHit(other);
+            CheckHit(other, transform.position);
         }
 
-        private bool CheckAndApplyHit(Collider other)
+        private bool CheckHit(Collider other, Vector3 hitPoint)
         {
             if (hasHit || other == null) return false;
 
             if (isPlayerOwned)
             {
-                // Abaikan jika mengenai diri sendiri (Player atau aksesorisnya) atau sesama peluru
+                // Abaikan jika mengenai diri sendiri atau sesama peluru
                 if (other.transform.root.CompareTag("Player") || other.GetComponent<Projectile>() != null)
                     return false;
 
-                // Mengenai Musuh
+                // Cek apakah mengenai Musuh (Zombie / Drone)
                 EnemyController enemy = other.GetComponent<EnemyController>();
                 if (enemy == null) enemy = other.GetComponentInParent<EnemyController>();
 
                 if (enemy != null && !enemy.IsDead)
                 {
                     hasHit = true;
+                    Debug.Log($"[Projectile] Peluru mengenai musuh: {enemy.name} (-{damage} HP)");
                     enemy.TakeDamage(damage);
-                    SpawnHitEffect(new Color(0f, 1f, 1f)); // Percikan Cyan
+                    SpawnHitEffect(new Color(0f, 1f, 1f), hitPoint);
                     Destroy(gameObject);
                     return true;
                 }
             }
             else
             {
-                // Abaikan jika mengenai sesama musuh atau sesama peluru
+                // Peluru musuh mengenai Player
                 if (other.transform.root.CompareTag("Enemy") || other.GetComponent<EnemyController>() != null || other.GetComponent<Projectile>() != null)
                     return false;
 
-                // Mengenai Player
                 PlayerController player = other.GetComponent<PlayerController>();
                 if (player == null) player = other.GetComponentInParent<PlayerController>();
 
                 if (player != null && !player.IsDead)
                 {
                     hasHit = true;
+                    Debug.Log($"[Projectile] Peluru musuh mengenai player (-{damage} HP)");
                     player.TakeDamage(damage);
-                    SpawnHitEffect(new Color(1f, 0.3f, 0.2f)); // Percikan Merah
+                    SpawnHitEffect(new Color(1f, 0.25f, 0.15f), hitPoint);
                     Destroy(gameObject);
                     return true;
                 }
             }
 
-            // Mengenai rintangan / dinding pembatas arena (bukan trigger lantai)
+            // Mengenai rintangan / dinding arena
             if (!other.isTrigger && !other.transform.root.CompareTag("Player") && other.GetComponent<EnemyController>() == null)
             {
                 hasHit = true;
-                SpawnHitEffect(new Color(0.2f, 0.8f, 1f));
+                SpawnHitEffect(new Color(0.3f, 0.85f, 1f), hitPoint);
                 Destroy(gameObject);
                 return true;
             }
@@ -136,11 +136,11 @@ namespace MultiverseArcade.Games.Syafiq
             return false;
         }
 
-        private void SpawnHitEffect(Color effectColor)
+        private void SpawnHitEffect(Color effectColor, Vector3 position)
         {
             GameObject spark = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             spark.name = "HitSpark";
-            spark.transform.position = transform.position;
+            spark.transform.position = position;
             spark.transform.localScale = Vector3.one * 0.35f;
 
             Collider sparkCol = spark.GetComponent<Collider>();

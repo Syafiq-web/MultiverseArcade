@@ -6,25 +6,38 @@ namespace MultiverseArcade.Games.Syafiq
 {
     /// <summary>
     /// Mengontrol pergerakan (WASD), arah bidik presisi (Mouse Aim dengan Reticle/Laser),
-    /// penembakan peluru plasma, audio SFX tembakan & damage, flash efek, dan kematian hero.
-    /// Dilengkapi batas collider arena yang sempurna (fail-safe clamp).
+    /// sistem pergantian senjata (Plasma Rifle vs Scatter Shotgun), penembakan peluru,
+    /// audio SFX, damage flash, dan kematian hero.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
     {
+        public enum WeaponType { PlasmaRifle, ScatterShotgun }
+
         [Header("Movement")]
         [SerializeField] private float moveSpeed = 10f;
         [SerializeField] private float gravity = 20f;
 
-        [Header("Combat & Aiming")]
+        [Header("Combat & Weapons")]
+        [SerializeField] private WeaponType currentWeapon = WeaponType.PlasmaRifle;
         [SerializeField] private Transform firePoint;
         [SerializeField] private GameObject projectilePrefab;
-        [SerializeField] private float fireRate = 0.18f;
         [SerializeField] private int maxHealth = 100;
+
+        [Header("Weapon Specs - Plasma Rifle")]
+        [SerializeField] private float rifleFireRate = 0.16f;
+        [SerializeField] private int rifleDamage = 25;
+
+        [Header("Weapon Specs - Scatter Shotgun")]
+        [SerializeField] private float shotgunFireRate = 0.55f;
+        [SerializeField] private int shotgunPellets = 6;
+        [SerializeField] private float shotgunSpreadAngle = 24f;
+        [SerializeField] private int shotgunDamagePerPellet = 20;
 
         [Header("Audio SFX")]
         [SerializeField] private AudioClip shootSound;
         [SerializeField] private AudioClip hurtSound;
+        [SerializeField] private AudioClip weaponSwitchSound;
 
         [Header("Visual Feedback")]
         [SerializeField] private Transform modelHolder;
@@ -48,11 +61,11 @@ namespace MultiverseArcade.Games.Syafiq
         public int CurrentHealth => currentHealth;
         public int MaxHealth => maxHealth;
         public bool IsDead => isDead;
+        public WeaponType CurrentWeapon => currentWeapon;
 
         private void Awake()
         {
             characterController = GetComponent<CharacterController>();
-            // Pengaturan parameter collision CharacterController yang optimal
             characterController.center = new Vector3(0, 1f, 0);
             characterController.radius = 0.5f;
             characterController.height = 2f;
@@ -67,7 +80,7 @@ namespace MultiverseArcade.Games.Syafiq
             {
                 audioSource = gameObject.AddComponent<AudioSource>();
                 audioSource.playOnAwake = false;
-                audioSource.spatialBlend = 0.2f; // Sebagian 2D agar terdengar jelas
+                audioSource.spatialBlend = 0.2f;
             }
 
             if (playerRenderer == null)
@@ -93,8 +106,7 @@ namespace MultiverseArcade.Games.Syafiq
             laserLine.endWidth = 0.02f;
             laserLine.positionCount = 2;
             laserLine.material = new Material(Shader.Find("Sprites/Default"));
-            laserLine.startColor = new Color(0f, 1f, 1f, 0.75f);
-            laserLine.endColor = new Color(0f, 1f, 1f, 0.15f);
+            UpdateLaserColor();
 
             // 2. Setup Reticle Bidik di Tanah
             aimReticle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
@@ -119,6 +131,7 @@ namespace MultiverseArcade.Games.Syafiq
             if (ArenaGameManager.Instance != null)
             {
                 ArenaGameManager.Instance.UpdatePlayerHealth(currentHealth, maxHealth);
+                NotifyWeaponChanged(false);
             }
         }
 
@@ -134,9 +147,73 @@ namespace MultiverseArcade.Games.Syafiq
             if (ArenaGameManager.Instance != null && ArenaGameManager.Instance.IsGameOver)
                 return;
 
+            HandleWeaponSwitchInput();
             HandleMovement();
             HandleAiming();
             HandleShooting();
+        }
+
+        private void HandleWeaponSwitchInput()
+        {
+            // Tombol Q untuk toggle senjata, atau angka 1 dan 2, atau scroll wheel mouse
+            if (Input.GetKeyDown(KeyCode.Q))
+            {
+                ToggleWeapon();
+            }
+            else if (Input.GetKeyDown(KeyCode.Alpha1))
+            {
+                SetWeapon(WeaponType.PlasmaRifle);
+            }
+            else if (Input.GetKeyDown(KeyCode.Alpha2))
+            {
+                SetWeapon(WeaponType.ScatterShotgun);
+            }
+
+            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            if (Mathf.Abs(scroll) > 0.05f)
+            {
+                ToggleWeapon();
+            }
+        }
+
+        public void ToggleWeapon()
+        {
+            WeaponType next = (currentWeapon == WeaponType.PlasmaRifle) ? WeaponType.ScatterShotgun : WeaponType.PlasmaRifle;
+            SetWeapon(next);
+        }
+
+        public void SetWeapon(WeaponType weapon)
+        {
+            if (currentWeapon == weapon) return;
+            currentWeapon = weapon;
+            NotifyWeaponChanged(true);
+        }
+
+        private void NotifyWeaponChanged(bool playSound)
+        {
+            UpdateLaserColor();
+
+            string wName = (currentWeapon == WeaponType.PlasmaRifle) ? "PLASMA RIFLE" : "SCATTER SHOTGUN";
+            Color wColor = (currentWeapon == WeaponType.PlasmaRifle) ? new Color(0f, 0.95f, 1f) : new Color(1f, 0.65f, 0.1f);
+
+            if (playSound)
+            {
+                PlaySound(weaponSwitchSound, 0.85f);
+            }
+
+            if (ArenaGameManager.Instance != null)
+            {
+                ArenaGameManager.Instance.ShowWeaponPopup(wName, wColor);
+            }
+        }
+
+        private void UpdateLaserColor()
+        {
+            if (laserLine == null) return;
+
+            Color c = (currentWeapon == WeaponType.PlasmaRifle) ? new Color(0f, 1f, 1f) : new Color(1f, 0.65f, 0.1f);
+            laserLine.startColor = new Color(c.r, c.g, c.b, 0.85f);
+            laserLine.endColor = new Color(c.r, c.g, c.b, 0.15f);
         }
 
         private void HandleMovement()
@@ -158,7 +235,7 @@ namespace MultiverseArcade.Games.Syafiq
             Vector3 motion = (moveDirection * moveSpeed) + new Vector3(0, velocity.y, 0);
             characterController.Move(motion * Time.deltaTime);
 
-            // Batasi posisi agar tidak pernah bisa menembus dinding arena (32x32 arena)
+            // Batas arena 34x34
             Vector3 clampedPos = transform.position;
             clampedPos.x = Mathf.Clamp(clampedPos.x, -14.2f, 14.2f);
             clampedPos.z = Mathf.Clamp(clampedPos.z, -14.2f, 14.2f);
@@ -170,7 +247,6 @@ namespace MultiverseArcade.Games.Syafiq
             if (mainCamera == null) mainCamera = Camera.main;
             if (mainCamera == null) return;
 
-            // Bidang bidik sejajar tinggi mata/senjata
             aimPlane.SetNormalAndPosition(Vector3.up, new Vector3(0, transform.position.y + 0.3f, 0));
 
             Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
@@ -180,7 +256,7 @@ namespace MultiverseArcade.Games.Syafiq
                 currentAimPoint = hitPoint;
 
                 Vector3 direction = hitPoint - transform.position;
-                direction.y = 0; // Kunci pada sumbu horizontal
+                direction.y = 0;
 
                 if (direction.sqrMagnitude > 0.05f)
                 {
@@ -188,13 +264,11 @@ namespace MultiverseArcade.Games.Syafiq
                     transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 35f);
                 }
 
-                // Update posisi Reticle di tanah
                 if (aimReticle != null)
                 {
                     aimReticle.transform.position = new Vector3(hitPoint.x, 0.05f, hitPoint.z);
                 }
 
-                // Update Garis Laser Sight Jarak Jauh (menembus layar hingga dinding/musuh)
                 if (laserLine != null)
                 {
                     Vector3 startPos = firePoint != null ? firePoint.position : (transform.position + transform.forward * 0.8f + Vector3.up * 0.3f);
@@ -220,61 +294,81 @@ namespace MultiverseArcade.Games.Syafiq
 
         private void HandleShooting()
         {
-            // Tembak dengan Klik Kiri Mouse atau Spacebar
+            float rate = (currentWeapon == WeaponType.PlasmaRifle) ? rifleFireRate : shotgunFireRate;
+
             if (Input.GetButton("Fire1") || Input.GetKey(KeyCode.Space))
             {
                 if (Time.time >= nextFireTime)
                 {
-                    nextFireTime = Time.time + fireRate;
-                    Shoot();
+                    nextFireTime = Time.time + rate;
+                    if (currentWeapon == WeaponType.PlasmaRifle)
+                    {
+                        ShootRifle();
+                    }
+                    else
+                    {
+                        ShootShotgun();
+                    }
                 }
             }
         }
 
-        private void Shoot()
+        private void ShootRifle()
         {
             Vector3 spawnPos = firePoint != null ? firePoint.position : (transform.position + transform.forward * 0.9f + Vector3.up * 0.3f);
             Vector3 shootDir = (currentAimPoint - spawnPos);
-            shootDir.y = 0; // Tembakan mendatar rata dengan tubuh
-
-            if (shootDir == Vector3.zero)
-            {
-                shootDir = transform.forward;
-            }
+            shootDir.y = 0;
+            if (shootDir == Vector3.zero) shootDir = transform.forward;
             shootDir.Normalize();
 
-            // Putar sound tembakan laser
-            PlaySound(shootSound, 0.7f);
+            PlaySound(shootSound, 0.75f);
 
-            if (projectilePrefab != null)
+            SpawnBullet(spawnPos, shootDir, 42f, rifleDamage, new Color(0f, 1f, 1f));
+
+            if (modelHolder != null) modelHolder.localPosition = new Vector3(0, 0, -0.15f);
+        }
+
+        private void ShootShotgun()
+        {
+            Vector3 spawnPos = firePoint != null ? firePoint.position : (transform.position + transform.forward * 0.9f + Vector3.up * 0.3f);
+            Vector3 baseDir = (currentAimPoint - spawnPos);
+            baseDir.y = 0;
+            if (baseDir == Vector3.zero) baseDir = transform.forward;
+            baseDir.Normalize();
+
+            // Putar sound tembakan shotgun (volume lebih tebal)
+            PlaySound(shootSound, 1.0f);
+
+            // Tembakkan sebaran 6 pellet (Scatter)
+            for (int i = 0; i < shotgunPellets; i++)
             {
-                GameObject proj = Instantiate(projectilePrefab, spawnPos, Quaternion.LookRotation(shootDir));
-                Projectile pComp = proj.GetComponent<Projectile>();
-                if (pComp != null) pComp.Init(shootDir, 38f, 30, true);
+                float angleOffset = Random.Range(-shotgunSpreadAngle * 0.5f, shotgunSpreadAngle * 0.5f);
+                Quaternion rot = Quaternion.Euler(0, angleOffset, 0);
+                Vector3 pelletDir = rot * baseDir;
+
+                SpawnBullet(spawnPos, pelletDir, 36f, shotgunDamagePerPellet, new Color(1f, 0.65f, 0.1f));
             }
-            else
+
+            // Recoil lebih kuat untuk shotgun
+            if (modelHolder != null) modelHolder.localPosition = new Vector3(0, 0, -0.3f);
+            if (ArenaCameraController.Instance != null) ArenaCameraController.Instance.TriggerShake(0.12f, 0.25f);
+        }
+
+        private void SpawnBullet(Vector3 position, Vector3 direction, float speed, int damage, Color bulletColor)
+        {
+            GameObject bolt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            bolt.name = "PlasmaPellet";
+            bolt.transform.position = position;
+            bolt.transform.localScale = Vector3.one * 0.35f;
+
+            Renderer boltRend = bolt.GetComponent<Renderer>();
+            if (boltRend != null)
             {
-                // Fallback projectile procedural jarak jauh
-                GameObject bolt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                bolt.name = "Player_PlasmaBolt";
-                bolt.transform.position = spawnPos;
-                bolt.transform.localScale = Vector3.one * 0.4f;
-
-                Renderer boltRend = bolt.GetComponent<Renderer>();
-                if (boltRend != null)
-                {
-                    boltRend.material.color = new Color(0f, 1f, 1f); // Cyan terang
-                }
-
-                Projectile proj = bolt.AddComponent<Projectile>();
-                proj.Init(shootDir, 38f, 30, true);
+                boltRend.material.color = bulletColor;
             }
 
-            // Muzzle recoil
-            if (modelHolder != null)
-            {
-                modelHolder.localPosition = new Vector3(0, 0, -0.15f);
-            }
+            Projectile proj = bolt.AddComponent<Projectile>();
+            proj.Init(direction, speed, damage, true);
         }
 
         private void LateUpdate()
@@ -292,13 +386,9 @@ namespace MultiverseArcade.Games.Syafiq
             currentHealth -= amount;
             Debug.Log($"[PlayerController] Player terkena damage {amount}! Sisa HP: {currentHealth}");
 
-            // Putar sound terkena damage
             PlaySound(hurtSound, 0.9f);
-
-            // Flash visual warna merah
             StartCoroutine(DamageFlashRoutine());
 
-            // Screen shake kamera
             if (ArenaCameraController.Instance != null)
             {
                 ArenaCameraController.Instance.TriggerShake(0.22f, 0.45f);
@@ -339,14 +429,11 @@ namespace MultiverseArcade.Games.Syafiq
             if (aimReticle != null) aimReticle.SetActive(false);
             if (laserLine != null) laserLine.enabled = false;
 
-            // Efek partikel ledakan kematian player
             SpawnDeathExplosion();
 
-            // Sembunyikan badan player & matikan controller
             if (playerRenderer != null) playerRenderer.enabled = false;
             characterController.enabled = false;
 
-            // Pastikan kursor aktif agar pemain dapat menekan tombol Game Over
             Cursor.visible = true;
             Cursor.lockState = CursorLockMode.None;
 
@@ -390,6 +477,13 @@ namespace MultiverseArcade.Games.Syafiq
             {
                 AudioSource.PlayClipAtPoint(clip, transform.position, volume);
             }
+        }
+
+        public void SetAudioClips(AudioClip shoot, AudioClip hurt, AudioClip switchSound = null)
+        {
+            shootSound = shoot;
+            hurtSound = hurt;
+            weaponSwitchSound = switchSound;
         }
 
         private void OnDestroy()

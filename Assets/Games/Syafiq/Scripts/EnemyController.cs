@@ -1,23 +1,24 @@
 using System.Collections;
 using MultiverseArcade.Audio;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace MultiverseArcade.Games.Syafiq
 {
     /// <summary>
-    /// AI Musuh (Chaser & Shooter) dengan Rigidbody kinematis, deteksi tabrakan presisi,
-    /// pemisahan antar musuh (anti-clumping separation), flash saat tertembak, audio SFX,
-    /// damage ke Player, dan efek ledakan saat gugur.
+    /// AI Musuh Zombie Chibi Kartun dengan Rigidbody kinematis, deteksi tabrakan presisi,
+    /// animasi jalan goyang (cartoon waddle), bar darah di atas kepala, hit flash,
+    /// knockback saat tertembak, dan efek ledakan lendir saat mati.
     /// </summary>
     [RequireComponent(typeof(Collider))]
     public class EnemyController : MonoBehaviour
     {
-        public enum EnemyType { Chaser, Shooter }
+        public enum EnemyType { ChaserZombie, ShooterZombie }
 
         [Header("Tipe & Statistik")]
-        [SerializeField] private EnemyType type = EnemyType.Chaser;
+        [SerializeField] private EnemyType type = EnemyType.ChaserZombie;
         [SerializeField] private int maxHealth = 50;
-        [SerializeField] private float moveSpeed = 4.5f;
+        [SerializeField] private float moveSpeed = 4.2f;
         [SerializeField] private int contactDamage = 15;
         [SerializeField] private int scoreValue = 100;
 
@@ -25,36 +26,40 @@ namespace MultiverseArcade.Games.Syafiq
         [SerializeField] private float attackRange = 8f;
         [SerializeField] private float fireRate = 1.3f;
         [SerializeField] private Transform firePoint;
-        [SerializeField] private GameObject projectilePrefab;
 
         [Header("Audio SFX")]
         [SerializeField] private AudioClip hitSound;
         [SerializeField] private AudioClip explosionSound;
 
+        [Header("Chibi Visual Model")]
+        [SerializeField] private Transform modelHolder;
+        [SerializeField] private Renderer[] zombieRenderers;
+        [SerializeField] private Slider healthBarSlider;
+
         private Transform playerTarget;
         private PlayerController playerScript;
-        private Renderer enemyRenderer;
-        private Color baseColor;
 
         private int currentHealth;
         private bool isDead = false;
         private float nextAttackTime;
         private float nextContactTime;
+        private Color[] originalColors;
 
         public bool IsDead => isDead;
 
         private void Awake()
         {
-            // Setup CapsuleCollider jika ada
+            // Pastikan tag terpasang
+            gameObject.tag = "Enemy";
+
             CapsuleCollider cc = GetComponent<CapsuleCollider>();
             if (cc != null)
             {
-                cc.center = new Vector3(0, 1f, 0);
-                cc.radius = 0.5f;
-                cc.height = 2f;
+                cc.center = new Vector3(0, 0.9f, 0);
+                cc.radius = 0.55f;
+                cc.height = 1.8f;
             }
 
-            // Pastikan memiliki Rigidbody kinematis agar event trigger physics 100% aktif
             Rigidbody rb = GetComponent<Rigidbody>();
             if (rb == null)
             {
@@ -62,18 +67,34 @@ namespace MultiverseArcade.Games.Syafiq
             }
             rb.isKinematic = true;
             rb.useGravity = false;
-            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
-            enemyRenderer = GetComponent<Renderer>();
-            if (enemyRenderer != null && enemyRenderer.material != null)
+            CacheRenderers();
+        }
+
+        public void CacheRenderers()
+        {
+            zombieRenderers = GetComponentsInChildren<Renderer>();
+            if (zombieRenderers != null && zombieRenderers.Length > 0)
             {
-                baseColor = enemyRenderer.material.color;
+                originalColors = new Color[zombieRenderers.Length];
+                for (int i = 0; i < zombieRenderers.Length; i++)
+                {
+                    if (zombieRenderers[i] != null && zombieRenderers[i].material != null)
+                    {
+                        originalColors[i] = zombieRenderers[i].material.color;
+                    }
+                }
             }
         }
 
         private void Start()
         {
             currentHealth = maxHealth;
+            if (healthBarSlider != null)
+            {
+                healthBarSlider.maxValue = maxHealth;
+                healthBarSlider.value = currentHealth;
+            }
             FindPlayer();
         }
 
@@ -101,32 +122,32 @@ namespace MultiverseArcade.Games.Syafiq
             toPlayer.y = 0;
             float distance = toPlayer.magnitude;
 
-            // Rotasi menghadap player
+            // Rotasi hadap ke player
             if (toPlayer.sqrMagnitude > 0.05f)
             {
                 Quaternion targetRot = Quaternion.LookRotation(toPlayer);
                 transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * 10f);
             }
 
-            // Hitung gaya separasi antar musuh (agar musuh tidak menumpuk/clumping)
+            // Animasi jalan waddle kartun zombie
+            AnimateChibiWalk();
+
+            // Pemisahan antar zombie (anti-clumping)
             Vector3 separationForce = CalculateSeparation();
 
-            if (type == EnemyType.Chaser)
+            if (type == EnemyType.ChaserZombie)
             {
-                // Kejar pemain + gaya penyebaran
                 Vector3 moveDir = (toPlayer.normalized + separationForce).normalized;
                 transform.position += moveDir * moveSpeed * Time.deltaTime;
 
-                // Garansi jarak dekat (Proximity Damage) jika menempel player
-                if (distance <= 1.35f && Time.time >= nextContactTime)
+                if (distance <= 1.4f && Time.time >= nextContactTime)
                 {
                     nextContactTime = Time.time + 0.8f;
                     playerScript.TakeDamage(contactDamage);
                 }
             }
-            else if (type == EnemyType.Shooter)
+            else if (type == EnemyType.ShooterZombie)
             {
-                // Jaga jarak tembak
                 if (distance > attackRange)
                 {
                     Vector3 moveDir = (toPlayer.normalized + separationForce).normalized;
@@ -134,16 +155,10 @@ namespace MultiverseArcade.Games.Syafiq
                 }
                 else if (distance < attackRange * 0.5f)
                 {
-                    // Mundur perlahan jika terlalu dekat
                     Vector3 moveDir = (-toPlayer.normalized + separationForce).normalized;
                     transform.position += moveDir * (moveSpeed * 0.6f) * Time.deltaTime;
                 }
-                else if (separationForce.sqrMagnitude > 0.01f)
-                {
-                    transform.position += separationForce * (moveSpeed * 0.5f) * Time.deltaTime;
-                }
 
-                // Menembak berkala
                 if (Time.time >= nextAttackTime)
                 {
                     nextAttackTime = Time.time + fireRate;
@@ -151,11 +166,23 @@ namespace MultiverseArcade.Games.Syafiq
                 }
             }
 
-            // Batasi agar musuh tidak tembus dinding arena
+            // Batas arena 34x34
             Vector3 clampedPos = transform.position;
             clampedPos.x = Mathf.Clamp(clampedPos.x, -14.2f, 14.2f);
             clampedPos.z = Mathf.Clamp(clampedPos.z, -14.2f, 14.2f);
             transform.position = clampedPos;
+        }
+
+        private void AnimateChibiWalk()
+        {
+            if (modelHolder != null)
+            {
+                // Goyangan langkah chibi kartun
+                float bob = Mathf.Sin(Time.time * 9f) * 0.06f;
+                float tilt = Mathf.Cos(Time.time * 9f) * 4f;
+                modelHolder.localPosition = new Vector3(0, bob, 0);
+                modelHolder.localRotation = Quaternion.Euler(0, 0, tilt);
+            }
         }
 
         private Vector3 CalculateSeparation()
@@ -178,11 +205,7 @@ namespace MultiverseArcade.Games.Syafiq
                 }
             }
 
-            if (count > 0)
-            {
-                separation /= count;
-            }
-
+            if (count > 0) separation /= count;
             return separation * 0.8f;
         }
 
@@ -190,47 +213,22 @@ namespace MultiverseArcade.Games.Syafiq
         {
             if (playerTarget == null) return;
 
-            Vector3 spawnPos = firePoint != null ? firePoint.position : (transform.position + transform.forward * 0.8f + Vector3.up * 0.4f);
+            Vector3 spawnPos = firePoint != null ? firePoint.position : (transform.position + transform.forward * 0.8f + Vector3.up * 0.9f);
             Vector3 shootDir = (playerTarget.position + Vector3.up * 0.4f - spawnPos).normalized;
 
-            if (projectilePrefab != null)
+            GameObject bolt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            bolt.name = "Zombie_SlimeSpit";
+            bolt.transform.position = spawnPos;
+            bolt.transform.localScale = Vector3.one * 0.38f;
+
+            Renderer rend = bolt.GetComponent<Renderer>();
+            if (rend != null)
             {
-                GameObject projGo = Instantiate(projectilePrefab, spawnPos, Quaternion.LookRotation(shootDir));
-                Projectile proj = projGo.GetComponent<Projectile>();
-                if (proj != null) proj.Init(shootDir, 18f, 15, false);
+                rend.material.color = new Color(0.95f, 0.45f, 0.1f);
             }
-            else
-            {
-                // Fallback proyektil musuh
-                GameObject bolt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                bolt.name = "Enemy_PlasmaBolt";
-                bolt.transform.position = spawnPos;
-                bolt.transform.localScale = Vector3.one * 0.35f;
 
-                Renderer rend = bolt.GetComponent<Renderer>();
-                if (rend != null)
-                {
-                    rend.material.color = new Color(1f, 0.25f, 0.15f); // Merah/Oranye musuh
-                }
-
-                Projectile proj = bolt.AddComponent<Projectile>();
-                proj.Init(shootDir, 18f, 15, false);
-            }
-        }
-
-        private void OnTriggerStay(Collider other)
-        {
-            if (isDead || type != EnemyType.Chaser) return;
-
-            if (other.CompareTag("Player") && Time.time >= nextContactTime)
-            {
-                PlayerController player = other.GetComponent<PlayerController>();
-                if (player != null && !player.IsDead)
-                {
-                    nextContactTime = Time.time + 0.8f;
-                    player.TakeDamage(contactDamage);
-                }
-            }
+            Projectile proj = bolt.AddComponent<Projectile>();
+            proj.Init(shootDir, 20f, 15, false);
         }
 
         public void TakeDamage(int damage)
@@ -238,12 +236,23 @@ namespace MultiverseArcade.Games.Syafiq
             if (isDead) return;
 
             currentHealth -= damage;
-            Debug.Log($"[EnemyController] Musuh {name} terkena {damage} damage! Sisa HP: {currentHealth}");
+            Debug.Log($"[EnemyController] Zombie {name} terkena {damage} damage! Sisa HP: {currentHealth}/{maxHealth}");
 
-            // Putar sound hit
-            PlaySound(hitSound, 0.6f);
+            // Update Health Bar Billboard
+            if (healthBarSlider != null)
+            {
+                healthBarSlider.value = currentHealth;
+            }
 
-            // Flash visual warna putih saat tertembak
+            // Knockback sedikit menjauh dari tembakan
+            if (playerTarget != null)
+            {
+                Vector3 away = (transform.position - playerTarget.position).normalized;
+                away.y = 0;
+                transform.position += away * 0.35f;
+            }
+
+            PlaySound(hitSound, 0.65f);
             StartCoroutine(HitFlashRoutine());
 
             if (currentHealth <= 0)
@@ -254,13 +263,23 @@ namespace MultiverseArcade.Games.Syafiq
 
         private IEnumerator HitFlashRoutine()
         {
-            if (enemyRenderer != null && enemyRenderer.material != null)
+            if (zombieRenderers != null && zombieRenderers.Length > 0)
             {
-                enemyRenderer.material.color = Color.white;
-                yield return new WaitForSeconds(0.08f);
-                if (!isDead && enemyRenderer != null && enemyRenderer.material != null)
+                for (int i = 0; i < zombieRenderers.Length; i++)
                 {
-                    enemyRenderer.material.color = baseColor;
+                    if (zombieRenderers[i] != null && zombieRenderers[i].material != null)
+                        zombieRenderers[i].material.color = Color.white;
+                }
+
+                yield return new WaitForSeconds(0.09f);
+
+                if (!isDead && zombieRenderers != null)
+                {
+                    for (int i = 0; i < zombieRenderers.Length; i++)
+                    {
+                        if (zombieRenderers[i] != null && zombieRenderers[i].material != null && originalColors != null && i < originalColors.Length)
+                            zombieRenderers[i].material.color = originalColors[i];
+                    }
                 }
             }
         }
@@ -270,9 +289,8 @@ namespace MultiverseArcade.Games.Syafiq
             if (isDead) return;
             isDead = true;
 
-            Debug.Log($"[EnemyController] Musuh {name} hancur! +{scoreValue} Skor");
+            Debug.Log($"[EnemyController] Zombie {name} GUGUR! +{scoreValue} Skor");
 
-            // Putar sound ledakan
             PlaySound(explosionSound, 0.85f);
 
             if (ArenaGameManager.Instance != null)
@@ -280,27 +298,28 @@ namespace MultiverseArcade.Games.Syafiq
                 ArenaGameManager.Instance.OnEnemyDefeated(scoreValue);
             }
 
-            // Efek partikel hancur
-            SpawnDeathEffect();
-
+            SpawnZombieSplatter();
             Destroy(gameObject);
         }
 
-        private void SpawnDeathEffect()
+        private void SpawnZombieSplatter()
         {
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 9; i++)
             {
                 GameObject piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                piece.transform.position = transform.position + Random.insideUnitSphere * 0.4f;
-                piece.transform.localScale = Vector3.one * 0.22f;
+                piece.transform.position = transform.position + Vector3.up * 0.8f + Random.insideUnitSphere * 0.4f;
+                piece.transform.localScale = Vector3.one * Random.Range(0.18f, 0.28f);
                 Destroy(piece.GetComponent<Collider>());
 
                 Renderer r = piece.GetComponent<Renderer>();
-                if (r != null) r.material.color = baseColor;
+                if (r != null)
+                {
+                    r.material.color = (i % 2 == 0) ? new Color(0.35f, 0.75f, 0.35f) : new Color(0.4f, 0.4f, 0.8f);
+                }
 
                 Rigidbody rb = piece.AddComponent<Rigidbody>();
-                rb.AddExplosionForce(300f, transform.position, 2.5f);
-                Destroy(piece, 1.2f);
+                rb.AddExplosionForce(320f, transform.position, 2.5f);
+                Destroy(piece, 1.3f);
             }
         }
 
@@ -322,6 +341,16 @@ namespace MultiverseArcade.Games.Syafiq
         {
             hitSound = hit;
             explosionSound = explosion;
+        }
+
+        public void SetupHealthBar(Slider slider)
+        {
+            healthBarSlider = slider;
+        }
+
+        public void SetModelHolder(Transform holder)
+        {
+            modelHolder = holder;
         }
     }
 }

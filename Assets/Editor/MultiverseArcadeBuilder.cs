@@ -27,10 +27,10 @@ namespace MultiverseArcade.EditorTools
         {
             EditorApplication.delayCall += () =>
             {
-                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v8", false))
+                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v9", false))
                 {
-                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v8", true);
-                    Debug.Log("[MultiverseArcadeAutoBuilder] Membangun ulang scene dengan jangkauan tembakan jauh dan tombol UI anti-macet...");
+                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v9", true);
+                    Debug.Log("[MultiverseArcadeAutoBuilder] Membangun ulang scene dengan Zombie Chibi Kartun 3D & Sistem Senjata Shotgun/Rifle...");
                     MultiverseArcadeBuilder.BuildAllScenesInternal(false);
                 }
             };
@@ -345,6 +345,7 @@ namespace MultiverseArcade.EditorTools
             AudioClip explosionClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/sfx_explosion.wav");
             AudioClip gameOverClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/sfx_game_over.wav");
             AudioClip bgmClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/bgm_arcade_action.wav");
+            AudioClip switchClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/sfx_weapon_switch.wav");
 
             // 1. Directional Light & Atmosphere
             CreateDirectionalLight(new Vector3(50, -45, 0), new Color(0.85f, 0.9f, 1.0f), 1.2f);
@@ -430,6 +431,7 @@ namespace MultiverseArcade.EditorTools
             SetPrivateField(playerCtrl, "firePoint", firePointGo.transform);
             SetPrivateField(playerCtrl, "shootSound", shootClip);
             SetPrivateField(playerCtrl, "hurtSound", hurtClip);
+            SetPrivateField(playerCtrl, "weaponSwitchSound", switchClip);
 
             // 4. Camera with Top-Down Isometric Tracker
             GameObject camGo = CreateCamera(new Vector3(0, 16f, -11f), Quaternion.Euler(55, 0, 0), new Color(0.04f, 0.05f, 0.08f));
@@ -485,6 +487,27 @@ namespace MultiverseArcade.EditorTools
             ntr.anchoredPosition = new Vector2(0, 120);
             ntr.sizeDelta = new Vector2(900, 80);
 
+            // --- Bottom Center Weapon HUD Button & Weapon Pop-up Banner ---
+            Button btnWeapon = CreateButton("BtnSwitchWeapon", hudRoot, "SENJATA: PLASMA RIFLE  [Q]", new Vector2(0, 45), new Vector2(380, 52), new Color(0.12f, 0.16f, 0.25f, 0.95f), new Color(0f, 0.95f, 1f), 18);
+            RectTransform wprt = btnWeapon.GetComponent<RectTransform>();
+            wprt.anchorMin = new Vector2(0.5f, 0f);
+            wprt.anchorMax = new Vector2(0.5f, 0f);
+            wprt.pivot = new Vector2(0.5f, 0f);
+            TextMeshProUGUI weaponHudText = btnWeapon.GetComponentInChildren<TextMeshProUGUI>();
+
+            GameObject wPopGo = CreateUIObject("WeaponPopupBanner", hudRoot);
+            RectTransform wpr = wPopGo.GetComponent<RectTransform>();
+            wpr.anchorMin = new Vector2(0.5f, 0.5f);
+            wpr.anchorMax = new Vector2(0.5f, 0.5f);
+            wpr.pivot = new Vector2(0.5f, 0.5f);
+            wpr.anchoredPosition = new Vector2(0, 40);
+            wpr.sizeDelta = new Vector2(560, 95);
+            Image wPopBg = wPopGo.AddComponent<Image>();
+            wPopBg.color = new Color(0.04f, 0.06f, 0.12f, 0.94f);
+            TextMeshProUGUI wPopText = CreateTMPText("PopupText", wPopGo.transform, "SENJATA DIAKTIFKAN:\nPLASMA RIFLE", 26, FontStyles.Bold, new Color(0f, 0.95f, 1f));
+            StretchFull(wPopText.GetComponent<RectTransform>());
+            wPopGo.SetActive(false);
+
             // --- Game Over Panel (Sorting Order 200 agar di atas segalanya & tombol 100% responsif) ---
             GameObject goPanel = CreateUIObject("GameOverPanel", hudRoot);
             StretchFull(goPanel.GetComponent<RectTransform>());
@@ -532,13 +555,17 @@ namespace MultiverseArcade.EditorTools
             SetPrivateField(arenaMgr, "scoreText", scoreText);
             SetPrivateField(arenaMgr, "waveText", waveText);
             SetPrivateField(arenaMgr, "waveNotificationText", notifText);
+            SetPrivateField(arenaMgr, "weaponHudText", weaponHudText);
+            SetPrivateField(arenaMgr, "btnSwitchWeapon", btnWeapon);
+            SetPrivateField(arenaMgr, "weaponPopupBanner", wPopGo);
+            SetPrivateField(arenaMgr, "weaponPopupText", wPopText);
             SetPrivateField(arenaMgr, "gameOverPanel", goPanel);
             SetPrivateField(arenaMgr, "finalScoreText", finalScore);
             SetPrivateField(arenaMgr, "highScoreText", highScore);
             SetPrivateField(arenaMgr, "btnRetry", btnRetry);
             SetPrivateField(arenaMgr, "btnBackSelection", btnSelection);
             SetPrivateField(arenaMgr, "btnMainMenu", btnMainMenu);
-            arenaMgr.SetAudioClips(bgmClip, gameOverClip);
+            arenaMgr.SetAudioClips(bgmClip, gameOverClip, switchClip);
 
             // 6. GameOverlayUI (Universal Pause / Menu)
             CreateOverlayCanvas();

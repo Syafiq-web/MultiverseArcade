@@ -9,7 +9,7 @@ namespace MultiverseArcade.Games.Syafiq
     /// <summary>
     /// GameManager untuk Arena Clash 3D (Game Syafiq).
     /// Mengatur skor, wave musuh, nyawa player, kondisi Game Over / Menang,
-    /// pemutaran BGM & audio game over, serta tombol navigasi universal.
+    /// pop-up ganti senjata, pemutaran BGM, serta tombol navigasi universal.
     /// </summary>
     public class ArenaGameManager : MonoBehaviour
     {
@@ -22,6 +22,12 @@ namespace MultiverseArcade.Games.Syafiq
         [SerializeField] private TextMeshProUGUI waveText;
         [SerializeField] private TextMeshProUGUI waveNotificationText;
 
+        [Header("UI - Weapon Indicator & Pop-up")]
+        [SerializeField] private TextMeshProUGUI weaponHudText;
+        [SerializeField] private Button btnSwitchWeapon;
+        [SerializeField] private GameObject weaponPopupBanner;
+        [SerializeField] private TextMeshProUGUI weaponPopupText;
+
         [Header("UI - Game Over Screen")]
         [SerializeField] private GameObject gameOverPanel;
         [SerializeField] private TextMeshProUGUI finalScoreText;
@@ -33,6 +39,7 @@ namespace MultiverseArcade.Games.Syafiq
         [Header("Audio Settings")]
         [SerializeField] private AudioClip bgmClip;
         [SerializeField] private AudioClip gameOverSound;
+        [SerializeField] private AudioClip weaponSwitchSound;
 
         private AudioSource internalBgmSource;
         private int currentScore = 0;
@@ -71,6 +78,9 @@ namespace MultiverseArcade.Games.Syafiq
             if (gameOverPanel != null)
                 gameOverPanel.SetActive(false);
 
+            if (weaponPopupBanner != null)
+                weaponPopupBanner.SetActive(false);
+
             if (btnRetry != null)
                 btnRetry.onClick.AddListener(RestartGame);
 
@@ -79,6 +89,15 @@ namespace MultiverseArcade.Games.Syafiq
 
             if (btnMainMenu != null)
                 btnMainMenu.onClick.AddListener(ReturnToMainMenu);
+
+            if (btnSwitchWeapon != null)
+            {
+                btnSwitchWeapon.onClick.AddListener(() =>
+                {
+                    PlayerController player = FindObjectOfType<PlayerController>();
+                    if (player != null) player.ToggleWeapon();
+                });
+            }
 
             UpdateScoreUI();
             UpdateWaveUI();
@@ -124,6 +143,7 @@ namespace MultiverseArcade.Games.Syafiq
             if (btnRetry != null) btnRetry.onClick.RemoveListener(RestartGame);
             if (btnBackSelection != null) btnBackSelection.onClick.RemoveListener(ReturnToGameSelection);
             if (btnMainMenu != null) btnMainMenu.onClick.RemoveListener(ReturnToMainMenu);
+            if (btnSwitchWeapon != null) btnSwitchWeapon.onClick.RemoveAllListeners();
         }
 
         public void UpdatePlayerHealth(int currentHealth, int maxHealth)
@@ -182,6 +202,39 @@ namespace MultiverseArcade.Games.Syafiq
             if (waveNotificationText != null)
             {
                 waveNotificationText.gameObject.SetActive(false);
+            }
+        }
+
+        public void ShowWeaponPopup(string weaponName, Color themeColor)
+        {
+            if (weaponPopupBanner != null && weaponPopupText != null)
+            {
+                weaponPopupText.text = $"SENJATA DIAKTIFKAN:\n<size=120%>{weaponName}</size>";
+                weaponPopupText.color = themeColor;
+                weaponPopupBanner.SetActive(true);
+
+                CancelInvoke(nameof(HideWeaponPopup));
+                Invoke(nameof(HideWeaponPopup), 1.8f);
+            }
+
+            if (weaponHudText != null)
+            {
+                weaponHudText.text = $"SENJATA: {weaponName}  [Q]";
+                weaponHudText.color = themeColor;
+            }
+
+            if (weaponSwitchSound != null)
+            {
+                if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(weaponSwitchSound);
+                else AudioSource.PlayClipAtPoint(weaponSwitchSound, Camera.main ? Camera.main.transform.position : transform.position);
+            }
+        }
+
+        private void HideWeaponPopup()
+        {
+            if (weaponPopupBanner != null)
+            {
+                weaponPopupBanner.SetActive(false);
             }
         }
 
@@ -288,10 +341,11 @@ namespace MultiverseArcade.Games.Syafiq
             }
         }
 
-        public void SetAudioClips(AudioClip bgm, AudioClip gameOver)
+        public void SetAudioClips(AudioClip bgm, AudioClip gameOver, AudioClip weaponSwitch = null)
         {
             bgmClip = bgm;
             gameOverSound = gameOver;
+            weaponSwitchSound = weaponSwitch;
         }
     }
 }
