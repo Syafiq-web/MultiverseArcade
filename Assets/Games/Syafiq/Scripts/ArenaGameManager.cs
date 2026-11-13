@@ -243,8 +243,11 @@ namespace MultiverseArcade.Games.Syafiq
         public void RestartGame()
         {
             Time.timeScale = 1.0f;
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
             if (SceneLoader.Instance != null)
             {
+                SceneLoader.Instance.ForceResetLoading();
                 SceneLoader.Instance.LoadScene(SceneNames.GameSyafiq);
             }
             else
@@ -256,8 +259,11 @@ namespace MultiverseArcade.Games.Syafiq
         public void ReturnToGameSelection()
         {
             Time.timeScale = 1.0f;
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
             if (SceneLoader.Instance != null)
             {
+                SceneLoader.Instance.ForceResetLoading();
                 SceneLoader.Instance.GoToGameSelection();
             }
             else
@@ -269,8 +275,11 @@ namespace MultiverseArcade.Games.Syafiq
         public void ReturnToMainMenu()
         {
             Time.timeScale = 1.0f;
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
             if (SceneLoader.Instance != null)
             {
+                SceneLoader.Instance.ForceResetLoading();
                 SceneLoader.Instance.GoToMainMenu();
             }
             else

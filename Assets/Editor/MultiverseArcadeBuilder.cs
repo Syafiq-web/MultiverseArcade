@@ -27,10 +27,10 @@ namespace MultiverseArcade.EditorTools
         {
             EditorApplication.delayCall += () =>
             {
-                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v6", false))
+                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v8", false))
                 {
-                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v6", true);
-                    Debug.Log("[MultiverseArcadeAutoBuilder] Membangun ulang scene dengan Audio SFX, BGM, dan Colliders sempurna...");
+                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v8", true);
+                    Debug.Log("[MultiverseArcadeAutoBuilder] Membangun ulang scene dengan jangkauan tembakan jauh dan tombol UI anti-macet...");
                     MultiverseArcadeBuilder.BuildAllScenesInternal(false);
                 }
             };
@@ -485,11 +485,16 @@ namespace MultiverseArcade.EditorTools
             ntr.anchoredPosition = new Vector2(0, 120);
             ntr.sizeDelta = new Vector2(900, 80);
 
-            // --- Game Over Panel ---
+            // --- Game Over Panel (Sorting Order 200 agar di atas segalanya & tombol 100% responsif) ---
             GameObject goPanel = CreateUIObject("GameOverPanel", hudRoot);
             StretchFull(goPanel.GetComponent<RectTransform>());
             Image goBg = goPanel.AddComponent<Image>();
             goBg.color = new Color(0.04f, 0.05f, 0.08f, 0.94f);
+
+            Canvas goCanvas = goPanel.AddComponent<Canvas>();
+            goCanvas.overrideSorting = true;
+            goCanvas.sortingOrder = 200;
+            goPanel.AddComponent<GraphicRaycaster>();
 
             GameObject goBox = CreateUIObject("GameOverBox", goPanel.transform);
             RectTransform goBoxRect = goBox.GetComponent<RectTransform>();
@@ -607,7 +612,7 @@ namespace MultiverseArcade.EditorTools
         private static void CreateOverlayCanvas()
         {
             GameObject canvasGo = CreateCanvas("GameOverlayCanvas", 1920, 1080);
-            canvasGo.GetComponent<Canvas>().sortingOrder = 100;
+            canvasGo.GetComponent<Canvas>().sortingOrder = 150;
             Transform root = canvasGo.transform;
 
             // Pause Button (Top Right)
@@ -699,6 +704,7 @@ namespace MultiverseArcade.EditorTools
 
             Image img = btnGo.AddComponent<Image>();
             img.color = bgColor;
+            img.raycastTarget = true;
 
             Button btn = btnGo.AddComponent<Button>();
             ColorBlock cb = btn.colors;
@@ -708,6 +714,7 @@ namespace MultiverseArcade.EditorTools
             btn.colors = cb;
 
             TextMeshProUGUI label = CreateTMPText("Text", btnGo.transform, text, fontSize, FontStyles.Bold, textColor);
+            label.raycastTarget = false;
             StretchFull(label.GetComponent<RectTransform>());
 
             return btn;

@@ -194,12 +194,26 @@ namespace MultiverseArcade.Games.Syafiq
                     aimReticle.transform.position = new Vector3(hitPoint.x, 0.05f, hitPoint.z);
                 }
 
-                // Update Garis Laser Sight dari Moncong Senjata
+                // Update Garis Laser Sight Jarak Jauh (menembus layar hingga dinding/musuh)
                 if (laserLine != null)
                 {
                     Vector3 startPos = firePoint != null ? firePoint.position : (transform.position + transform.forward * 0.8f + Vector3.up * 0.3f);
+                    Vector3 laserDir = (hitPoint - startPos);
+                    laserDir.y = 0;
+                    if (laserDir == Vector3.zero) laserDir = transform.forward;
+                    laserDir.Normalize();
+
+                    Vector3 laserEnd = startPos + laserDir * 45f;
+                    if (Physics.Raycast(startPos, laserDir, out RaycastHit wallHit, 45f))
+                    {
+                        if (!wallHit.collider.isTrigger && !wallHit.collider.transform.root.CompareTag("Player"))
+                        {
+                            laserEnd = wallHit.point;
+                        }
+                    }
+
                     laserLine.SetPosition(0, startPos);
-                    laserLine.SetPosition(1, new Vector3(hitPoint.x, startPos.y, hitPoint.z));
+                    laserLine.SetPosition(1, laserEnd);
                 }
             }
         }
@@ -236,11 +250,11 @@ namespace MultiverseArcade.Games.Syafiq
             {
                 GameObject proj = Instantiate(projectilePrefab, spawnPos, Quaternion.LookRotation(shootDir));
                 Projectile pComp = proj.GetComponent<Projectile>();
-                if (pComp != null) pComp.Init(shootDir, 32f, 30, true);
+                if (pComp != null) pComp.Init(shootDir, 38f, 30, true);
             }
             else
             {
-                // Fallback projectile procedural
+                // Fallback projectile procedural jarak jauh
                 GameObject bolt = GameObject.CreatePrimitive(PrimitiveType.Sphere);
                 bolt.name = "Player_PlasmaBolt";
                 bolt.transform.position = spawnPos;
@@ -253,7 +267,7 @@ namespace MultiverseArcade.Games.Syafiq
                 }
 
                 Projectile proj = bolt.AddComponent<Projectile>();
-                proj.Init(shootDir, 32f, 30, true);
+                proj.Init(shootDir, 38f, 30, true);
             }
 
             // Muzzle recoil
@@ -331,6 +345,10 @@ namespace MultiverseArcade.Games.Syafiq
             // Sembunyikan badan player & matikan controller
             if (playerRenderer != null) playerRenderer.enabled = false;
             characterController.enabled = false;
+
+            // Pastikan kursor aktif agar pemain dapat menekan tombol Game Over
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
 
             if (ArenaGameManager.Instance != null)
             {

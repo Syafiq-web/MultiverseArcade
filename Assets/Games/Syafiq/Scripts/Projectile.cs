@@ -4,14 +4,16 @@ namespace MultiverseArcade.Games.Syafiq
 {
     /// <summary>
     /// Proyektil energi/peluru yang ditembakkan oleh Player atau Musuh.
-    /// Dilengkapi Rigidbody kinematis dan Trigger collider agar deteksi tabrakan 100% konsisten.
+    /// Memiliki range tembakan jauh (kecepatan tinggi & jangkauan seisi arena),
+    /// Rigidbody kinematis, dan deteksi tabrakan presisi tanpa self-collision.
     /// </summary>
     [RequireComponent(typeof(Collider))]
     public class Projectile : MonoBehaviour
     {
-        [SerializeField] private float speed = 28f;
+        [Header("Jarak & Kecepatan")]
+        [SerializeField] private float speed = 38f;
         [SerializeField] private int damage = 25;
-        [SerializeField] private float lifetime = 3.0f;
+        [SerializeField] private float lifetime = 4.0f; // Jarak jangkauan 38 * 4 = 152 meter (jauh seisi arena)
         [SerializeField] private bool isPlayerOwned = true;
 
         private Vector3 moveDirection;
@@ -31,6 +33,7 @@ namespace MultiverseArcade.Games.Syafiq
             }
             rb.isKinematic = true;
             rb.useGravity = false;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
         }
 
         public void Init(Vector3 direction, float projSpeed, int projDamage, bool playerOwned)
@@ -58,10 +61,10 @@ namespace MultiverseArcade.Games.Syafiq
         {
             if (hasHit) return;
 
-            // Pergerakan peluru
+            // Pergerakan peluru berkecepatan tinggi
             Vector3 step = moveDirection * speed * Time.deltaTime;
             
-            // Sweep test / raycast pendek untuk mencegah tunnelling pada fps tinggi
+            // Sweep raycast untuk mendeteksi musuh di depan sebelum melewatinya
             if (Physics.Raycast(transform.position, moveDirection, out RaycastHit hit, step.magnitude * 1.5f))
             {
                 if (CheckAndApplyHit(hit.collider))
@@ -84,8 +87,8 @@ namespace MultiverseArcade.Games.Syafiq
 
             if (isPlayerOwned)
             {
-                // Jangan tabrak diri sendiri atau sesama peluru
-                if (other.CompareTag("Player") || other.GetComponent<Projectile>() != null)
+                // Abaikan jika mengenai diri sendiri (Player atau aksesorisnya) atau sesama peluru
+                if (other.transform.root.CompareTag("Player") || other.GetComponent<Projectile>() != null)
                     return false;
 
                 // Mengenai Musuh
@@ -103,8 +106,8 @@ namespace MultiverseArcade.Games.Syafiq
             }
             else
             {
-                // Jangan tabrak musuh lain atau sesama peluru
-                if (other.GetComponent<EnemyController>() != null || other.GetComponent<Projectile>() != null)
+                // Abaikan jika mengenai sesama musuh atau sesama peluru
+                if (other.transform.root.CompareTag("Enemy") || other.GetComponent<EnemyController>() != null || other.GetComponent<Projectile>() != null)
                     return false;
 
                 // Mengenai Player
@@ -121,11 +124,11 @@ namespace MultiverseArcade.Games.Syafiq
                 }
             }
 
-            // Mengenai rintangan / dinding (Bukan Trigger lain)
-            if (!other.isTrigger)
+            // Mengenai rintangan / dinding pembatas arena (bukan trigger lantai)
+            if (!other.isTrigger && !other.transform.root.CompareTag("Player") && other.GetComponent<EnemyController>() == null)
             {
                 hasHit = true;
-                SpawnHitEffect(Color.yellow);
+                SpawnHitEffect(new Color(0.2f, 0.8f, 1f));
                 Destroy(gameObject);
                 return true;
             }
