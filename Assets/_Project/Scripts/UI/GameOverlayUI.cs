@@ -1,147 +1,176 @@
-using MultiverseArcade.Core;
 using UnityEngine;
 using UnityEngine.UI;
+using MultiverseArcade.Core;
 
 namespace MultiverseArcade.UI
 {
     /// <summary>
-    /// UI Overlay universal yang dapat ditempatkan di setiap Scene game anggota.
-    /// Menyediakan tombol Pause, Switch Game, Main Menu, dan Restart secara konsisten.
+    /// UI Overlay universal yang ditempatkan di setiap Scene gameplay.
+    /// Menyediakan kontrol Pause, Switch Game, Main Menu, dan Restart secara seragam.
+    /// Sesuai GDD Bagian 2.2 & 2.3.
     /// </summary>
     public class GameOverlayUI : MonoBehaviour
     {
         [Header("Pause Panel")]
-        [SerializeField] private GameObject pausePanel;
-        [SerializeField] private Button pauseButton;
-        [SerializeField] private Button resumeButton;
+        [SerializeField] private GameObject _pausePanel;
+        [SerializeField] private Button _pauseButton;
+        [SerializeField] private Button _resumeButton;
 
         [Header("Navigation Buttons")]
-        [SerializeField] private Button restartButton;
-        [SerializeField] private Button switchGameButton;
-        [SerializeField] private Button mainMenuButton;
+        [SerializeField] private Button _restartButton;
+        [SerializeField] private Button _switchGameButton;
+        [SerializeField] private Button _mainMenuButton;
 
         private void Start()
         {
-            if (pausePanel != null)
-                pausePanel.SetActive(false);
+            if (_pausePanel != null)
+                _pausePanel.SetActive(false);
 
-            if (pauseButton != null)
-                pauseButton.onClick.AddListener(OnPauseClicked);
+            if (_pauseButton != null)
+                _pauseButton.onClick.AddListener(OnPauseClicked);
 
-            if (resumeButton != null)
-                resumeButton.onClick.AddListener(OnResumeClicked);
+            if (_resumeButton != null)
+                _resumeButton.onClick.AddListener(OnResumeClicked);
 
-            if (restartButton != null)
-                restartButton.onClick.AddListener(OnRestartClicked);
+            if (_restartButton != null)
+                _restartButton.onClick.AddListener(OnRestartClicked);
 
-            if (switchGameButton != null)
-                switchGameButton.onClick.AddListener(OnSwitchGameClicked);
+            if (_switchGameButton != null)
+                _switchGameButton.onClick.AddListener(OnSwitchGameClicked);
 
-            if (mainMenuButton != null)
-                mainMenuButton.onClick.AddListener(OnMainMenuClicked);
+            if (_mainMenuButton != null)
+                _mainMenuButton.onClick.AddListener(OnMainMenuClicked);
         }
 
-        private void Update()
+        private void OnEnable()
         {
-            // Shortcut keyboard Escape untuk Pause/Resume
-            if (Input.GetKeyDown(KeyCode.Escape))
+            GameManager.OnPauseStateChanged += HandlePauseStateChanged;
+        }
+
+        private void OnDisable()
+        {
+            GameManager.OnPauseStateChanged -= HandlePauseStateChanged;
+        }
+
+        private void HandlePauseStateChanged(bool isPaused)
+        {
+            if (_pausePanel != null)
             {
-                TogglePause();
+                _pausePanel.SetActive(isPaused);
             }
         }
 
-        private void OnDestroy()
+        public void BindControls(GameObject pausePanel, Button pauseBtn, Button resumeBtn,
+            Button restartBtn, Button switchBtn, Button menuBtn)
         {
-            if (pauseButton != null) pauseButton.onClick.RemoveListener(OnPauseClicked);
-            if (resumeButton != null) resumeButton.onClick.RemoveListener(OnResumeClicked);
-            if (restartButton != null) restartButton.onClick.RemoveListener(OnRestartClicked);
-            if (switchGameButton != null) switchGameButton.onClick.RemoveListener(OnSwitchGameClicked);
-            if (mainMenuButton != null) mainMenuButton.onClick.RemoveListener(OnMainMenuClicked);
-        }
+            _pausePanel = pausePanel;
+            _pauseButton = pauseBtn;
+            _resumeButton = resumeBtn;
+            _restartButton = restartBtn;
+            _switchGameButton = switchBtn;
+            _mainMenuButton = menuBtn;
 
-        public void TogglePause()
-        {
-            if (GameManager.Instance != null)
+            if (_pausePanel != null) _pausePanel.SetActive(false);
+
+            if (_pauseButton != null)
             {
-                GameManager.Instance.TogglePause();
-                if (pausePanel != null)
-                    pausePanel.SetActive(GameManager.Instance.IsPaused);
+                _pauseButton.onClick.RemoveAllListeners();
+                _pauseButton.onClick.AddListener(OnPauseClicked);
             }
-            else
+            if (_resumeButton != null)
             {
-                // Fallback jika tidak ada GameManager di scene
-                bool isCurrentlyPaused = Time.timeScale == 0f;
-                Time.timeScale = isCurrentlyPaused ? 1f : 0f;
-                if (pausePanel != null)
-                    pausePanel.SetActive(!isCurrentlyPaused);
+                _resumeButton.onClick.RemoveAllListeners();
+                _resumeButton.onClick.AddListener(OnResumeClicked);
+            }
+            if (_restartButton != null)
+            {
+                _restartButton.onClick.RemoveAllListeners();
+                _restartButton.onClick.AddListener(OnRestartClicked);
+            }
+            if (_switchGameButton != null)
+            {
+                _switchGameButton.onClick.RemoveAllListeners();
+                _switchGameButton.onClick.AddListener(OnSwitchGameClicked);
+            }
+            if (_mainMenuButton != null)
+            {
+                _mainMenuButton.onClick.RemoveAllListeners();
+                _mainMenuButton.onClick.AddListener(OnMainMenuClicked);
             }
         }
 
         public void OnPauseClicked()
         {
+            PlayClick();
             if (GameManager.Instance != null)
-                GameManager.Instance.SetPause(true);
+            {
+                GameManager.Instance.PauseGame();
+            }
             else
+            {
                 Time.timeScale = 0f;
-
-            if (pausePanel != null)
-                pausePanel.SetActive(true);
+                if (_pausePanel != null) _pausePanel.SetActive(true);
+            }
         }
 
         public void OnResumeClicked()
         {
+            PlayClick();
             if (GameManager.Instance != null)
-                GameManager.Instance.SetPause(false);
+            {
+                GameManager.Instance.ResumeGame();
+            }
             else
+            {
                 Time.timeScale = 1f;
-
-            if (pausePanel != null)
-                pausePanel.SetActive(false);
+                if (_pausePanel != null) _pausePanel.SetActive(false);
+            }
         }
 
         public void OnRestartClicked()
         {
-            // Pastikan timeScale dinormalkan sebelum restart
-            Time.timeScale = 1.0f;
-
-            if (SceneLoader.Instance != null)
+            PlayClick();
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.RestartCurrentGame();
+            }
+            else if (SceneLoader.Instance != null)
             {
                 SceneLoader.Instance.RestartCurrentScene();
-            }
-            else
-            {
-                var activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
-                UnityEngine.SceneManagement.SceneManager.LoadScene(activeScene.name);
             }
         }
 
         public void OnSwitchGameClicked()
         {
-            // Kembali ke halaman GameSelection
-            Time.timeScale = 1.0f;
-
-            if (SceneLoader.Instance != null)
+            PlayClick();
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.GoToSelection();
+            }
+            else if (SceneLoader.Instance != null)
             {
                 SceneLoader.Instance.GoToGameSelection();
-            }
-            else
-            {
-                UnityEngine.SceneManagement.SceneManager.LoadScene(SceneNames.GameSelection);
             }
         }
 
         public void OnMainMenuClicked()
         {
-            // Kembali ke MainMenu
-            Time.timeScale = 1.0f;
-
-            if (SceneLoader.Instance != null)
+            PlayClick();
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.GoToMenu();
+            }
+            else if (SceneLoader.Instance != null)
             {
                 SceneLoader.Instance.GoToMainMenu();
             }
-            else
+        }
+
+        private void PlayClick()
+        {
+            if (AudioManager.Instance != null)
             {
-                UnityEngine.SceneManagement.SceneManager.LoadScene(SceneNames.MainMenu);
+                AudioManager.Instance.PlayButtonClick();
             }
         }
     }

@@ -6,11 +6,17 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/_Project/Scenes/Bootstrap.unity
+    guid: ecf3a02e6f3216e4b8faeae55fa9294d
+  - enabled: 1
     path: Assets/_Project/Scenes/MainMenu.unity
     guid: ba71411a56f636f49ba7f75695028e31
   - enabled: 1
     path: Assets/_Project/Scenes/GameSelection.unity
     guid: be205b4df328ba54abb082b51e44a5a8
+  - enabled: 1
+    path: Assets/_Project/Scenes/Loading.unity
+    guid: 7a03bcb37f63c794c85fd64790f6253d
   - enabled: 1
     path: Assets/Games/Syafiq/Scenes/Game_Syafiq.unity
     guid: d89c47ab07e6b4f4485bbdd7cba81576

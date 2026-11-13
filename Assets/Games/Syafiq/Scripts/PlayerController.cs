@@ -1,5 +1,5 @@
 using System.Collections;
-using MultiverseArcade.Audio;
+using MultiverseArcade.Core;
 using UnityEngine;
 
 namespace MultiverseArcade.Games.Syafiq

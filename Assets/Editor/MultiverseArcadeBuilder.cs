@@ -922,13 +922,12 @@ namespace MultiverseArcade.EditorTools
 
         private static void ClearScene()
         {
-            GameObject[] all = Object.FindObjectsOfType<GameObject>();
-            foreach (var go in all)
+            var roots = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
+            foreach (var root in roots)
             {
-                // Jangan hapus DontDestroyOnLoad atau editor objects
-                if (go.hideFlags == HideFlags.None && go.scene.isLoaded)
+                if (root != null)
                 {
-                    Object.DestroyImmediate(go);
+                    Object.DestroyImmediate(root);
                 }
             }
         }

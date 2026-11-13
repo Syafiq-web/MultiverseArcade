@@ -1,0 +1,895 @@
+﻿Multiverse Arcade — Complex Game Design Document v2.0
+Pengembangan lanjutan dari dokumen v1.0 (baseline). Fokus: arsitektur sistem, kontrak integrasi, desain mendalam Arena Clash 3D, balancing, QA, dan roadmap.
+Tim: Syafiq, Jaya, Prima, Brili, Risa · Engine: Unity 3D · Status: Draft v2.0
+0. Ringkasan Perubahan dari v1.0
+Area
+	v1.0
+	v2.0
+	Arsitektur
+	Satu project, Scene terpisah
+	Ditambah Bootstrap Scene, persistent manager, Event Bus, GameRegistry (ScriptableObject), kontrak IArcadeGame
+	Navigasi
+	Switch Game via tombol
+	Async loading + loading screen + state machine aplikasi + reset state otomatis
+	Arena Clash 3D
+	1 hero, bot sederhana
+	Roster hero, skill + super, status effect, power-up, respawn, AI berbasis FSM + utility scoring, data-driven (ScriptableObject)
+	Teknis
+	Standar minimum
+	Layer/tag, collision matrix, assembly definition, performance budget, Definition of Done
+	Kolaborasi
+	Git dasar
+	Branching, scene ownership, PR template, RACI, jadwal integrasi
+	QA
+	Tabel skenario
+	Test matrix, bug severity, release checklist, profiling
+	Game anggota lain
+	Template konsep
+	Template konsep + complexity budget + milestone wajib
+	1. Visi Produk dan Pilar
+Multiverse Arcade adalah satu aplikasi "hub" berisi lima game 3D berbeda. Pemain bebas memilih game, berpindah kapan saja, dan setiap game punya identitas sendiri di bawah satu sistem navigasi, audio, pengaturan, dan penyimpanan yang seragam.
+Pilar produk
+1. Modular: tiap game bisa dikembangkan, dites, dan dibuang/diganti tanpa merusak game lain.
+2. Konsisten di lapisan global: menu, pause, pengaturan, audio, dan loading terasa sama di semua game.
+3. Beragam di lapisan gameplay: genre dan mekanisme inti tiap game berbeda jelas.
+4. Stabil: tidak ada crash saat pindah game berulang kali (stress test 50x switch).
+5. Realistis: MVP dulu, fitur lanjutan masuk backlog berprioritas.
+Target pengalaman: dari buka aplikasi sampai bermain maksimal 3 klik; pindah game maksimal 5 detik loading di laptop target.
+2. Arsitektur Sistem Global
+2.1 Struktur Scene
+Scene
+	Tipe
+	Fungsi
+	Bootstrap
+	Persistent entry
+	Scene pertama (index 0). Membuat manager global, lalu memuat MainMenu.
+	MainMenu
+	Global
+	Play, Settings, Credits, Quit.
+	GameSelection
+	Global
+	Kartu 5 game (dibuat dari GameRegistry).
+	Loading
+	Global (additive)
+	Layar loading + progress bar.
+	Game_Syafiq ... Game_Risa
+	Gameplay
+	Satu scene per game.
+	Manager global dibuat sekali di Bootstrap dan dipertahankan dengan DontDestroyOnLoad (atau scene persistent yang di-load additive). Game individual tidak boleh membuat manager global sendiri.
+2.2 Manager Global
+Manager
+	Tanggung jawab
+	GameManager
+	State aplikasi, ringkasan sesi, pintu masuk navigasi (GoToMenu, GoToSelection, LoadGame(id), Quit).
+	SceneLoader
+	Async load (LoadSceneAsync), loading screen, fade in/out, reset Time.timeScale.
+	AudioManager
+	Mixer (Master/Music/SFX), volume tersimpan, crossfade musik per scene.
+	UIManager
+	Canvas global (loading, toast, dialog konfirmasi).
+	SaveManager
+	Simpan pengaturan dan progres ringan (JSON di Application.persistentDataPath).
+	SettingsManager
+	Resolusi, kualitas grafis, volume, sensitivitas (jika relevan).
+	EventBus
+	Event antar-sistem tanpa referensi langsung (lihat 2.4).
+	2.3 State Machine Aplikasi
+Boot → MainMenu → GameSelection → Loading → InGame ⇄ Paused → (Result) → GameSelection/MainMenu → Quit
+Aturan transisi:
+* Setiap transisi keluar dari InGame wajib memanggil IArcadeGame.OnGameExit() lalu Time.timeScale = 1.
+* Paused hanya valid dari InGame. Pause menyetel timeScale = 0 dan menjeda audio SFX.
+* Loading selalu lewat SceneLoader; tidak ada pemanggilan SceneManager.LoadScene langsung dari game.
+2.4 Event Bus (komunikasi longgar)
+Event global (contoh): OnGameStarted(gameId), OnGamePaused, OnGameResumed, OnGameEnded(gameId, result), OnSceneLoadRequested(sceneName), OnSettingsChanged. Game menerbitkan event, manager global mendengarkan. Tujuannya: game tidak perlu tahu cara kerja manager.
+2.5 GameRegistry (data-driven)
+GameRegistry adalah ScriptableObject berisi daftar GameInfo:
+Field
+	Isi
+	id
+	syafiq, jaya, dst.
+	displayName
+	Judul game di kartu.
+	sceneName
+	Nama scene gameplay.
+	thumbnail
+	Sprite untuk kartu.
+	genre, description
+	Teks di GameSelection.
+	controlsHint
+	Ringkasan kontrol.
+	isEnabled
+	Kartu aktif/nonaktif (untuk game yang belum siap).
+	Manfaat: GameSelection otomatis menampilkan game baru tanpa mengedit scene menu; game yang belum siap bisa ditandai "Coming Soon".
+2.5.1 Kontrak IArcadeGame
+Setiap game memiliki satu komponen "GameEntry" yang mengimplementasikan:
+public interface IArcadeGame
+{
+   string GameId { get; }
+   void OnGameEnter();   // dipanggil saat scene siap
+   void OnGamePause();
+   void OnGameResume();
+   void OnGameRestart(); // reset penuh state game
+   void OnGameExit();    // bersihkan event, coroutine, audio
+}
+GameManager memanggil kontrak ini; game tetap bebas mengatur logika internalnya.
+2.6 Penyimpanan
+Data minimum: volume, kualitas grafis, lastPlayedGameId, high score per game. Format JSON versi 1 dengan field version agar bisa migrasi. Game menyimpan skor lewat SaveManager.SetHighScore(gameId, value), bukan PlayerPrefs langsung.
+2.7 Input
+Pilih satu sistem untuk seluruh project (Input Manager lama atau Input System). Rekomendasi: Input Manager lama untuk kemudahan tim pemula; semua game memakai Esc = Pause. Jika ada game yang butuh Input System, harus disepakati bersama dan dikonfigurasi di Project Settings.
+3. Standar Teknis Bersama
+3.1 Versi dan Pipeline
+* Unity 6 LTS (versi persis dikunci di ProjectSettings/ProjectVersion.txt; semua anggota memakai versi sama).
+* Render pipeline: URP. Satu URP Asset untuk seluruh project; jangan mengubah asset ini tanpa koordinasi.
+* Package wajib: AI Navigation, TextMeshPro, Cinemachine (opsional), Input System (hanya jika dipilih).
+3.2 Konvensi Penamaan
+Objek
+	Konvensi
+	Contoh
+	Script/class
+	PascalCase
+	PlayerController
+	Field private
+	_camelCase
+	_moveSpeed
+	Scene
+	Game_Nama
+	Game_Syafiq
+	Prefab
+	PF_Nama
+	PF_Projectile_Blaze
+	Material
+	M_Nama
+	M_Arena_Ground
+	ScriptableObject
+	SO_Nama
+	SO_Hero_Blaze
+	Namespace
+	MultiverseArcade.<Nama>
+	MultiverseArcade.Syafiq
+	3.3 Layer, Tag, dan Collision Matrix (bagian global)
+Layer global dicadangkan agar tidak bentrok: Default, UI, Ground, Walls. Setiap anggota memakai layer game-nya sendiri dengan prefiks (mis. Syafiq_Player) atau menggunakan tag. Catatan: Unity hanya mendukung 32 layer; sepakati kuota per anggota (maks. 4 layer custom per game) di awal.
+3.4 Assembly Definition
+Tiap game punya asmdef sendiri (MultiverseArcade.Syafiq, dst.) yang merujuk MultiverseArcade.Core. Manfaat: compile lebih cepat dan ketergantungan antar-game terlarang secara teknis.
+3.5 Performance Budget (per game)
+Metrik
+	Target
+	Frame rate
+	≥ 60 FPS di laptop target, minimum 30 FPS
+	Draw call (batch)
+	< 300
+	Segitiga di layar
+	< 300.000
+	Memori scene
+	< 500 MB
+	Waktu load scene
+	< 5 detik
+	Spike GC
+	Hindari alokasi per frame di Update
+	3.6 Definition of Done (DoD) untuk satu fitur
+* Berjalan di scene tanpa error/warning kritis di Console.
+* Sudah dites minimal oleh satu orang selain pembuat.
+* Tidak ada missing reference; file .meta ikut commit.
+* Tidak merusak Build (scene masuk Build Profiles).
+* Terdokumentasi singkat (komentar di script atau catatan di PR).
+4. Kolaborasi dan Manajemen Proyek
+4.1 Branching
+* main: selalu bisa di-build; hanya lewat Pull Request.
+* develop: integrasi mingguan.
+* feature/<nama>-<fitur>: kerja harian tiap anggota (mis. feature/syafiq-bot-ai).
+* Hotfix: hotfix/<deskripsi>.
+4.2 Scene Ownership
+File
+	Pemilik
+	Aturan
+	Game_<Nama>.unity
+	Anggota terkait
+	Hanya pemilik yang mengedit.
+	Bootstrap, MainMenu, GameSelection, Loading
+	Integrator (Syafiq)
+	Perubahan lewat permintaan/PR.
+	Assets/_Project/Scripts
+	Integrator
+	Review wajib dari minimal 1 anggota lain.
+	Project Settings (Tags/Layers/URP)
+	Integrator
+	Diubah hanya setelah disepakati.
+	Tips: gunakan prefab dan prefab variant untuk objek bersama agar konflik scene minimal. Aktifkan Smart Merge (UnityYAMLMerge) atau kunci scene lewat Git LFS lock bila perlu.
+4.3 Template Pull Request
+1. Apa yang berubah dan kenapa.
+2. Cara menguji (langkah singkat).
+3. Checklist: Console bersih ✓, .meta ✓, scene di Build Profiles ✓, tidak mengubah file milik orang lain ✓.
+4. Screenshot/GIF jika ada perubahan visual.
+4.4 RACI Ringkas
+Pekerjaan
+	Syafiq
+	Jaya
+	Prima
+	Brili
+	Risa
+	Game masing-masing
+	R/A
+	R/A
+	R/A
+	R/A
+	R/A
+	Core global (manager, navigasi)
+	R/A
+	C
+	C
+	C
+	C
+	Main Menu + Game Selection UI
+	A
+	C
+	R
+	R
+	C
+	Audio global + SFX UI
+	C
+	R
+	C
+	C
+	A
+	QA lintas game
+	C
+	R
+	R
+	R
+	R
+	Build final dan release
+	R/A
+	C
+	C
+	C
+	C
+	R = Responsible, A = Accountable, C = Consulted.
+4.5 Ritme Kerja
+* Stand-up singkat 2x seminggu (15 menit): kemarin, hari ini, hambatan.
+* Integration Day tiap akhir minggu: semua merge ke develop, build bersama, lalu smoke test lima game.
+* Demo internal tiap 2 minggu.
+5. Arena Clash 3D — Desain Mendalam
+5.1 Identitas
+Elemen
+	Deskripsi
+	Judul
+	Arena Clash 3D
+	Genre
+	Stylized top-down hero arena shooter
+	Mode
+	Team Battle 3v3 vs AI (single-player)
+	Kamera
+	Top-down miring (sekitar 55–60°), mengikuti pemain
+	Visual
+	Cartoon 3D / low-poly konsisten
+	Durasi pertandingan
+	180 detik atau 10 eliminasi
+	5.2 Core Loop
+Mikro (detik): bergerak → bidik → tembak → hindari → lihat HP. Meso (menit): kejar/hindari lawan → rebut power-up → pakai skill/super → eliminasi. Makro (sesi): pilih hero → bertanding → lihat hasil → coba hero lain / restart / ganti game.
+5.3 Mode Pertandingan
+Mode
+	Aturan
+	Prioritas
+	Team Deathmatch
+	3v3, 10 eliminasi atau 180 detik
+	MVP
+	Team Deathmatch + Respawn
+	Mati → respawn 3–5 detik di spawn tim
+	Fase lanjutan
+	Gem Grab (lite)
+	Kumpulkan 10 gem dan tahan 10 detik
+	Stretch goal
+	Survival Wave
+	Player + 2 bot vs gelombang bot
+	Stretch goal
+	5.4 Sistem Hero (data-driven)
+Setiap hero adalah SO_Hero (ScriptableObject) sehingga balancing cukup mengubah angka di Inspector.
+Hero
+	Peran
+	HP
+	Speed
+	Serangan dasar
+	Skill (Space)
+	Super
+	Blaze (MVP)
+	Gunner seimbang
+	100
+	5.0
+	1 proyektil, 20 dmg, interval 0,4 s
+	Dash 4 m, cooldown 6 s
+	Tembakan salvo 5 peluru
+	Bulwark
+	Tank
+	160
+	3.8
+	Shotgun 3 pelet x 8 dmg, interval 0,8 s
+	Shield 2 s (−60% dmg), cooldown 10 s
+	Hentakan area stun 1 s
+	Vex
+	Sniper
+	70
+	5.5
+	1 peluru tembus, 35 dmg, interval 1,0 s
+	Blink 6 m, cooldown 8 s
+	Peluru tembus semua target satu garis
+	Mina
+	Support
+	90
+	5.0
+	Proyektil 12 dmg + menyembuhkan ally 8 HP
+	Heal pulse area
+	Zona penyembuh 4 s
+	MVP hanya mengimplementasikan Blaze; hero lain masuk fase 6 setelah semua sistem stabil.
+5.5 Stat Dasar dan Rumus
+* TTK (time to kill) target tengah: HP 100 / 20 dmg = 5 tembakan x 0,4 s = ±2,0 s jika semua kena.
+* Hit rate realistis 50% → TTK ±4 s, cukup untuk 3 menit pertandingan.
+* Kecepatan proyektil 14 u/s, jangkauan 10 u, masa hidup 0,8 s.
+* Super charge: +10% per damage 20 diberikan, +25% per eliminasi; super siap pada 100%.
+5.6 Sistem Combat
+Alur damage (data flow)
+1. PlayerCombat/BotAI meminta proyektil dari ProjectilePool (object pooling).
+2. Proyektil diberi ownerTeamId, damage, speed, lifetime.
+3. OnTriggerEnter → cek layer → Health.TakeDamage(damage, attackerTeamId, attacker).
+4. Health menolak damage jika teamId sama atau karakter sudah mati/invulnerable.
+5. Jika currentHealth <= 0 → Die() sekali saja → event OnCharacterDied(victim, killer).
+6. ArenaMatchManager mendengar event, menambah skor tim, memberi super charge, memicu respawn atau cek akhir pertandingan.
+Status effect
+Effect
+	Efek
+	Durasi
+	Sumber
+	Slow
+	Speed −30%
+	2 s
+	Power-up/skill tertentu
+	Stun
+	Tidak bisa gerak/tembak
+	1 s
+	Super Bulwark
+	Shield
+	Damage diterima −60%
+	2 s
+	Skill Bulwark
+	Haste
+	Speed +25%
+	4 s
+	Power-up
+	Heal over time
+	+5 HP/detik
+	3 s
+	Mina
+	Implementasi: StatusEffectController per karakter, daftar efek aktif dengan timer, dikalkulasi sebagai multiplier pada speed/damage.
+5.7 Power-Up dan Objek Arena
+Objek
+	Efek
+	Respawn
+	Health Pack
+	+40 HP
+	20 s
+	Speed Boost
+	Haste 4 s
+	25 s
+	Damage Boost
+	+30% damage 5 s
+	30 s
+	Barrel eksplosif
+	Ledakan area 25 dmg (semua tim)
+	Tidak respawn
+	Bush (semak)
+	Karakter di dalamnya tersembunyi dari AI jika jarak > 4 u
+	—
+	Keputusan MVP: tembok memblokir gerak dan proyektil; semak hanya menyembunyikan (tanpa blokir tembakan). Power-up masuk fase 6.
+5.8 Desain Arena
+* Ukuran awal 30 x 30 u, simetris sumbu tengah agar adil bagi kedua tim.
+* Zona: Blue Spawn (barat daya), Red Spawn (timur laut), Central Zone dengan 4–6 obstacle sebagai cover.
+* Tiga lane (kiri, tengah, kanan) agar bot punya pilihan jalur.
+* Dinding batas tinggi 2 u dengan collider tebal agar proyektil tidak tembus.
+* Navmesh: bake dengan Agent Radius sesuai kapsul karakter (±0,5) dan Step Height rendah; obstacle bergerak memakai NavMeshObstacle (carve).
+* Iterasi: arena kedua (variasi tema) sebagai stretch goal.
+5.9 AI Bot — FSM + Utility Scoring
+State machine
+State
+	Perilaku
+	Transisi
+	Idle/Spawn
+	Diam singkat, memilih rute
+	→ Seek
+	Seek
+	Berjalan ke tengah / titik acak
+	→ Chase jika target terdeteksi
+	Chase
+	Mengejar target via NavMeshAgent
+	→ Attack saat dalam jangkauan; → Seek jika target hilang
+	Attack
+	Berhenti, menghadap, menembak sesuai fire rate (dengan aim error)
+	→ Strafe/Retreat
+	Strafe
+	Bergerak menyamping acak saat menembak
+	→ Attack
+	Retreat
+	Mundur ke health pack / spawn saat HP < 30%
+	→ Seek saat HP pulih
+	Dead
+	Nonaktif, tunggu respawn jika ada
+	→ Idle
+	Pemilihan target (utility score)
+score = w1·(1 − jarak/jangkauan) + w2·(1 − HP_target/maxHP) + w3·(target menyerang bot ini) + w4·(garis tembak bebas)
+Bobot awal: w1 = 0,4, w2 = 0,3, w3 = 0,2, w4 = 0,1. Target dievaluasi tiap 0,3–0,5 detik, bukan tiap frame.
+Tingkat kesulitan (parameter, bukan perilaku baru)
+Level
+	Reaction time
+	Aim error
+	Fire interval
+	Strafe
+	Retreat
+	Easy
+	0,8 s
+	±15°
+	1,3 s
+	Tidak
+	Tidak
+	Normal
+	0,5 s
+	±8°
+	1,0 s
+	Kadang
+	HP < 25%
+	Hard
+	0,25 s
+	±3°
+	0,7 s
+	Ya
+	HP < 35%
+	Perilaku tim: bot rekan mengikuti pemain dalam radius 6–8 u saat tidak ada musuh, lalu menyerang target terdekat; menghindari friendly fire (cek garis tembak sebelum menembak). Pembagian target: jangan semua bot memilih target yang sama (penalti skor untuk target yang sudah dikejar ≥ 2 bot).
+Penghindaran proyektil (opsional): jika proyektil lawan terdeteksi menuju bot dalam sudut < 20° dan jarak < 5 u, bot melakukan sidestep dengan cooldown 1,5 s.
+5.10 Kamera
+* Sudut X 55°, jarak 12–14 u, field of view 50–60.
+* Mengikuti pemain dengan smooth damp (0,15 s) dan sedikit look-ahead ke arah mouse.
+* Screen shake ringan saat terkena damage (amplitudo kecil, durasi 0,1 s); bisa dimatikan di Settings.
+* Penanganan oklusi: objek tinggi yang menutupi pemain dibuat semi-transparan (shader/layer fade).
+5.11 UI/UX
+Elemen
+	Detail
+	Top panel
+	Skor Blue — Timer — Skor Red; timer berubah merah pada 10 detik terakhir
+	Health bar world-space
+	Di atas kepala semua karakter; warna per tim (biru/merah)
+	Player HUD
+	HP, ikon skill + cooldown (radial fill), super meter
+	Crosshair/aim indicator
+	Garis/arah bidik di lantai dari FirePoint
+	Damage number
+	Angka melayang saat kena damage
+	Kill feed
+	Daftar eliminasi di sudut kanan atas ("Blaze ➜ Red Bot 02")
+	Pause panel
+	Resume, Restart, Settings, Switch Game, Main Menu
+	Result panel
+	Hasil, skor akhir, statistik pribadi (damage, eliminasi, akurasi), Rematch, Switch Game
+	Countdown
+	3-2-1-GO sebelum pertandingan; kontrol terkunci selama countdown
+	Aksesibilitas: warna tim juga dibedakan dengan bentuk indikator (segitiga/lingkaran), ukuran teks cukup besar, volume dapat diatur terpisah.
+5.12 Animasi, VFX, dan Audio
+Animator: layer Locomotion (Idle, Run, Strafe via blend tree dengan parameter Speed, MoveX, MoveZ), layer UpperBody (Shoot, Hit, Skill), state Death. Karakter menghadap arah bidik sementara kaki mengikuti arah gerak (upper-body aiming).
+VFX: muzzle flash, trail proyektil, impact spark, dash trail, efek eliminasi (poof), indikator spawn. Gunakan Particle System/VFX Graph ringan; maksimum 200 partikel aktif.
+Audio: SFX tembak, hit, eliminasi, skill, countdown, pause, win/lose; musik loop ringan. Semua via AudioManager dengan mixer group SFX/Music.
+5.13 Arsitektur Script (diperluas)
+Games/Syafiq/
+├── Scripts/
+│   ├── Core/        ArenaGameEntry.cs (IArcadeGame), ArenaEvents.cs
+│   ├── Data/        SO_Hero.cs, SO_Projectile.cs, SO_BotDifficulty.cs, SO_MatchSettings.cs
+│   ├── Player/      PlayerController.cs, PlayerCombat.cs, PlayerSkillController.cs
+│   ├── Bots/        BotBrain.cs (FSM), BotTargeting.cs, BotMovement.cs, BotCombat.cs
+│   ├── Combat/      Health.cs, Projectile.cs, ProjectilePool.cs, StatusEffectController.cs, DamageInfo.cs
+│   ├── Match/       ArenaMatchManager.cs, SpawnManager.cs, ScoreBoard.cs, PowerUpSpawner.cs
+│   ├── Camera/      TopDownCamera.cs
+│   └── UI/          ArenaUIManager.cs, HealthBarWorld.cs, SkillButtonUI.cs, KillFeedUI.cs, ResultPanelUI.cs
+Script
+	Tanggung jawab
+	Bergantung pada
+	ArenaGameEntry
+	Menghubungkan Arena Clash ke GameManager (implementasi IArcadeGame)
+	GameManager
+	PlayerController
+	Gerak Rigidbody, aiming raycast
+	Input
+	PlayerCombat
+	Fire rate, spawn proyektil dari pool
+	SO_Hero, ProjectilePool
+	PlayerSkillController
+	Skill, cooldown, super charge
+	StatusEffectController
+	BotBrain
+	FSM + keputusan utama
+	BotTargeting, NavMeshAgent
+	Health
+	HP, damage, mati sekali, event
+	DamageInfo
+	ProjectilePool
+	Object pooling proyektil
+	Projectile
+	ArenaMatchManager
+	Skor, timer, state match, win/draw
+	Health events
+	SpawnManager
+	Posisi spawn, respawn, reset
+	ArenaMatchManager
+	Prinsip: komunikasi antar-sistem lewat event C# (Action<T>), bukan referensi langsung berantai; data angka di ScriptableObject, bukan hard-coded.
+Contoh DamageInfo agar mudah dikembangkan:
+public struct DamageInfo
+{
+   public float amount;
+   public int attackerTeamId;
+   public GameObject attacker;
+   public Vector3 hitPoint;
+}
+5.14 State Pertandingan
+Countdown → Playing → (Paused) → Finished → ResultShown
+Pada transisi ke Finished: nonaktifkan input, hentikan timer, hentikan bot (NavMeshAgent.isStopped = true), tampilkan Result Panel. Pada Restart: bersihkan proyektil di pool, reset HP, posisi, skor, timer, status effect, cooldown, dan Time.timeScale = 1.
+5.15 Layer dan Physics (Arena Clash)
+Layer
+	Dipakai oleh
+	Syafiq_Player
+	Pemain + Blue Bot
+	Syafiq_Enemy
+	Red Bot
+	Syafiq_Projectile
+	Proyektil semua tim
+	Syafiq_Wall
+	Tembok dan obstacle
+	Collision matrix: Projectile ↔ Player/Enemy/Wall aktif; Projectile ↔ Projectile nonaktif; Player ↔ Enemy aktif. Friendly fire tetap dicegah dengan Team ID, bukan layer, agar sistem berlaku untuk mode lain.
+5.16 Balancing
+Parameter
+	Nilai awal
+	Cara menyetel
+	Damage proyektil
+	20
+	Naikkan jika match terlalu lama
+	Player fire interval
+	0,4 s
+	Turunkan jika terasa lambat
+	Bot fire interval
+	1,0 s
+	Mengatur kesulitan
+	Kecepatan player
+	5 u/s
+	Samakan dengan ukuran arena
+	Kecepatan bot
+	4,2 u/s
+	Sedikit lebih lambat dari pemain
+	Respawn time
+	4 s
+	Naikkan bila skor terlalu cepat
+	Durasi match
+	180 s
+	Evaluasi dari playtest
+	Playtest metrics yang dicatat: durasi rata-rata match, persentase menang Blue vs Red, rata-rata eliminasi pemain, jumlah draw, persentase waktu pemain tidak melihat musuh. Target: Blue menang 50–60% pada Normal.
+5.17 Performa
+* Object pooling untuk proyektil (pool 60) dan efek.
+* Pencarian target berkala (0,3–0,5 s) dengan Physics.OverlapSphereNonAlloc.
+* NavMeshAgent.SetDestination maksimum 5–10x per detik per bot.
+* Hindari Find/GetComponent di Update; cache referensi.
+* Gunakan Time.deltaTime untuk semua gerak; fisika di FixedUpdate.
+5.18 Test Matrix Arena Clash
+ID
+	Area
+	Skenario
+	Hasil yang diharapkan
+	AC-01
+	Movement
+	Diagonal W+D
+	Kecepatan sama dengan gerak lurus
+	AC-02
+	Movement
+	Tabrak tembok
+	Tidak tembus/ bergetar
+	AC-03
+	Aiming
+	Mouse di semua sudut layar
+	Karakter berputar hanya di sumbu Y
+	AC-04
+	Shooting
+	Tahan klik kiri
+	Fire rate sesuai 0,4 s
+	AC-05
+	Team
+	Tembak rekan
+	Tidak ada damage
+	AC-06
+	Health
+	Karakter mati
+	Mati 1x, eliminasi tercatat 1x
+	AC-07
+	AI
+	Bot terhalang tembok
+	Mencari jalan memutar
+	AC-08
+	AI
+	Satu bot mati
+	Bot lain mengganti target
+	AC-09
+	Match
+	Skor 10 tercapai
+	Match berhenti, panel tampil
+	AC-10
+	Match
+	Waktu habis skor sama
+	Hasil Draw
+	AC-11
+	UI
+	Pause saat match
+	Timer & bot berhenti
+	AC-12
+	Restart
+	Restart 20x berturut-turut
+	State bersih, tidak ada kebocoran objek
+	AC-13
+	Integration
+	Switch Game saat pause
+	Kembali ke GameSelection, timeScale = 1
+	AC-14
+	Performa
+	6 karakter + 60 proyektil
+	≥ 60 FPS
+	AC-15
+	Skill
+	Dash ke arah tembok
+	Tidak menembus/keluar arena
+	5.19 Roadmap Arena Clash (detail)
+Fase
+	Pekerjaan
+	Output
+	Estimasi
+	1
+	Blockout arena, player, kamera, WASD, aiming
+	Prototype bergerak
+	1 minggu
+	2
+	Proyektil, pooling, Health, damage
+	Bisa menembak target
+	1 minggu
+	3
+	NavMesh, BotAI FSM dasar
+	Bot mengejar dan menyerang
+	1 minggu
+	4
+	Team ID, 3v3, skor, timer, win/draw
+	Match lengkap
+	1 minggu
+	5
+	HUD, pause, restart, result, integrasi IArcadeGame
+	Siap masuk hub
+	1 minggu
+	6
+	Hero tambahan, skill, super, power-up, respawn
+	Gameplay kaya
+	2 minggu
+	7
+	Model, animasi, VFX, audio, polish, balancing
+	Siap demo
+	2 minggu
+	8
+	Bug fix, playtest, optimasi, build final
+	Release
+	1 minggu
+	Gate: fase 5 harus selesai sebelum fitur fase 6 dikerjakan (MVP-first).
+5.20 Risiko Spesifik
+Risiko
+	Dampak
+	Mitigasi
+	Bot macet di sudut
+	Gameplay rusak
+	Radius agent kecil, obstacle carving, stuck detection (pindah target jika diam > 2 s)
+	Proyektil menembus tembok tipis
+	Tembakan tidak adil
+	Ketebalan tembok ≥ 1 u, Continuous Dynamic collision / raycast
+	Match terlalu sepi tanpa respawn
+	Membosankan
+	Respawn jadi prioritas fase 6
+	Banyak hero = scope membengkak
+	Telat
+	Maksimal 2 hero sebelum polish; sisanya stretch
+	Konflik saat merge scene
+	Waktu hilang
+	Prefab-based arena, scene lock
+	6. Template Game Anggota Lain (diperluas)
+Jaya, Prima, Brili, dan Risa mengisi Concept Sheet (Lampiran A v1.0) plus bagian tambahan berikut.
+6.1 Tambahan Concept Sheet
+1. Core loop mikro, meso, makro.
+2. MVP list (maks. 8 fitur) dan stretch list.
+3. Complexity budget: perkiraan jumlah model, animasi, script, dan jam kerja.
+4. Kontrol dan kamera.
+5. Kondisi menang/kalah dan skor.
+6. Risiko teknis utama dan rencana mitigasi.
+7. Daftar aset (model, SFX, musik) dan sumber/lisensi.
+8. Entry point: konfirmasi implementasi IArcadeGame.
+6.2 Ide Genre sebagai Inspirasi (opsional)
+Genre
+	Contoh mekanisme inti
+	Kompleksitas
+	3D Platformer/Obstacle Run
+	Lompat, rintangan, checkpoint
+	Sedang
+	Racing sederhana
+	Kendaraan, lap, checkpoint
+	Sedang–Tinggi
+	Puzzle 3D
+	Dorong blok, kunci, pintu
+	Rendah–Sedang
+	Tower Defense
+	Menaruh menara, gelombang musuh
+	Sedang
+	Survival/Horde
+	Bertahan dari gelombang
+	Sedang
+	Rhythm/Reflex
+	Ketukan, timing
+	Rendah–Sedang
+	Aturan: gameplay inti tidak boleh menyerupai Arena Clash atau game anggota lain.
+6.3 Milestone Wajib Tiap Game
+Minggu
+	Milestone
+	1
+	Concept Sheet disetujui
+	2
+	Greybox playable (kontrol dasar)
+	3
+	Core loop lengkap + menang/kalah
+	4
+	Pause, Restart, Switch Game terintegrasi
+	5–6
+	Visual, audio, polish
+	7
+	Feature freeze + bug fixing
+	8
+	Build final
+	7. Roadmap Global Multiverse Arcade
+Minggu
+	Fokus global
+	Pemilik
+	1
+	Setup repo, versi Unity, struktur folder, Bootstrap, concept sheet
+	Semua
+	2
+	GameManager, SceneLoader, GameRegistry, prototype MainMenu
+	Syafiq
+	3
+	GameSelection UI + loading screen + AudioManager
+	Prima, Brili, Risa
+	4
+	Integrasi pertama (greybox 5 game masuk build)
+	Semua
+	5
+	Settings, SaveManager, high score
+	Syafiq, Jaya
+	6
+	Polish UI global, konsistensi visual
+	Risa, Prima
+	7
+	QA lintas game, stress test, performa
+	Semua
+	8
+	Build final, dokumentasi, presentasi
+	Semua
+	Catatan: angka minggu bersifat saran dan harus disesuaikan dengan jadwal perkuliahan dan deadline dosen.
+8. QA Global dan Release
+8.1 Tingkat Keparahan Bug
+Severity
+	Definisi
+	Contoh
+	Aksi
+	S1 Critical
+	Crash / tidak bisa lanjut
+	Stuck di loading
+	Perbaiki segera
+	S2 Major
+	Fitur inti rusak
+	Switch Game tidak kembali
+	Sebelum merge
+	S3 Minor
+	Gangguan kecil
+	Teks terpotong
+	Sebelum release
+	S4 Cosmetic
+	Visual kecil
+	Warna kurang pas
+	Jika sempat
+	8.2 Smoke Test Integrasi (tiap Integration Day)
+1. Build dari develop berjalan sampai MainMenu.
+2. Setiap dari 5 game bisa dibuka dari GameSelection.
+3. Pause, Resume, Restart, Switch Game berfungsi di tiap game.
+4. Pindah game 20x berurutan tanpa crash/lonjakan memori.
+5. Volume/settings tersimpan setelah restart aplikasi.
+6. Tidak ada error merah di Console (Development Build).
+8.3 Release Checklist
+* Semua scene di Build Profiles; urutan Bootstrap = index 0.
+* Versi Unity dan package terkunci; tidak ada missing script.
+* Ikon, nama aplikasi, resolusi default sudah diatur.
+* Build Windows (atau platform dosen) dites di mesin lain.
+* README: cara instal, kontrol tiap game, kredit aset/lisensi.
+* Tag Git v1.0 dan arsip build.
+9. Risk Register Global
+Risiko
+	Probabilitas
+	Dampak
+	Mitigasi
+	Scope tiap game terlalu besar
+	Tinggi
+	Tinggi
+	MVP-first, feature freeze minggu 7
+	Konflik merge Scene/Project Settings
+	Sedang
+	Tinggi
+	Scene ownership, prefab, PR review
+	Perbedaan versi Unity
+	Sedang
+	Tinggi
+	Kunci versi sejak minggu 1
+	Game anggota terlambat
+	Sedang
+	Sedang
+	Milestone mingguan, tandai isEnabled=false bila belum siap
+	Layer/Tag bentrok
+	Sedang
+	Sedang
+	Kuota layer per anggota
+	Lisensi aset bermasalah
+	Rendah
+	Sedang
+	Catat sumber dan lisensi di Credits.md
+	Performa buruk di laptop target
+	Sedang
+	Sedang
+	Performance budget, profiling berkala
+	Anggota berhalangan
+	Rendah
+	Tinggi
+	Dokumentasi, pair review, backup pemilik
+	10. Keputusan yang Masih Terbuka
+Keputusan
+	Opsi
+	Rekomendasi
+	Batas waktu
+	Versi Unity
+	Unity 6 LTS / 2022 LTS
+	Unity 6 LTS bila semua perangkat mendukung
+	Minggu 1
+	Input
+	Input Manager / Input System
+	Input Manager lama
+	Minggu 1
+	Platform build
+	Windows / WebGL / Android
+	Windows (WebGL memiliki batasan NavMesh/performa)
+	Minggu 1
+	Respawn Arena Clash
+	Ada / tidak
+	Ada setelah MVP stabil
+	Fase 6
+	Jumlah hero MVP
+	1 / 2
+	1 hero, 2 hero setelah fase 5
+	Fase 5
+	Genre Jaya, Prima, Brili, Risa
+	Bebas
+	Ajukan Concept Sheet
+	Minggu 1
+	11. Glosarium
+* MVP: versi paling sederhana yang sudah bisa dimainkan.
+* FSM: Finite State Machine, model perilaku berbasis state.
+* ScriptableObject: aset data Unity untuk menyimpan konfigurasi.
+* Object Pooling: memakai ulang objek agar tidak sering Instantiate/Destroy.
+* NavMesh: mesh navigasi untuk pathfinding AI.
+* TTK: Time To Kill, waktu untuk mengalahkan target.
+* DoD: Definition of Done, kriteria sebuah pekerjaan dianggap selesai.
+* Greybox: prototype kasar tanpa aset visual final.
+12. Lampiran — Checklist Integrasi Game (v2.0)
+* ☐ Scene sesuai standar nama dan terdaftar di Build Profiles.
+* ☐ Memiliki komponen GameEntry yang mengimplementasikan IArcadeGame.
+* ☐ Pause (Esc), Restart, Switch Game, Main Menu berfungsi.
+* ☐ Navigasi hanya lewat GameManager/SceneLoader.
+* ☐ Time.timeScale kembali 1 saat keluar scene.
+* ☐ Event dan coroutine dibersihkan di OnGameExit().
+* ☐ Audio lewat AudioManager; high score lewat SaveManager.
+* ☐ Tidak ada missing reference, error, atau warning kritis.
+* ☐ File .meta dan aset masuk repository; lisensi aset tercatat.
+* ☐ Lolos smoke test di build project utama.

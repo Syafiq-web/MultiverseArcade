@@ -1,16 +1,16 @@
 namespace MultiverseArcade.Core
 {
     /// <summary>
-    /// Daftar nama konstanta scene yang terdaftar di Multiverse Arcade.
-    /// Gunakan konstanta ini untuk mencegah typo saat pemanggilan SceneManager.
+    /// Konstanta nama-nama scene untuk mencegah typo pemanggilan.
     /// </summary>
     public static class SceneNames
     {
-        // Global Scenes
+        public const string Bootstrap = "Bootstrap";
         public const string MainMenu = "MainMenu";
         public const string GameSelection = "GameSelection";
+        public const string Loading = "Loading";
 
-        // Member Gameplay Scenes
+        // Gameplay scenes
         public const string GameSyafiq = "Game_Syafiq";
         public const string GameJaya = "Game_Jaya";
         public const string GamePrima = "Game_Prima";

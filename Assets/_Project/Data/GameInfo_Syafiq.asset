@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ad8d4701fb4701498fefe8443471afd, type: 3}
+  m_Name: GameInfo_Syafiq
+  m_EditorClassIdentifier: 
+  id: syafiq
+  displayName: Arena Clash 3D
+  sceneName: Game_Syafiq
+  thumbnail: {fileID: 0}
+  genre: Top-Down Hero Shooter
+  description: Pertempuran arena 3v3 intensif melawan gerombolan zombie dengan persenjataan
+    ganda Plasma Rifle & Scatter Shotgun.
+  controlsHint: 'WASD: Bergerak | Mouse: Bidik & Tembak | Q/1/2: Ganti Senjata |
+    Esc: Pause'
+  isEnabled: 1

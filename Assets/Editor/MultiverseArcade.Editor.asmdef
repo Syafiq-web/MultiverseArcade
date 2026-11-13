@@ -1,0 +1,23 @@
+{
+    "name": "MultiverseArcade.Editor",
+    "rootNamespace": "MultiverseArcade.EditorTools",
+    "references": [
+        "MultiverseArcade.Core",
+        "MultiverseArcade.Syafiq",
+        "Unity.TextMeshPro",
+        "Unity.TextMeshPro.Editor",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Universal.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

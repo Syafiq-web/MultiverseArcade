@@ -1,4 +1,3 @@
-using MultiverseArcade.Audio;
 using MultiverseArcade.Core;
 using TMPro;
 using UnityEngine;
@@ -10,10 +9,18 @@ namespace MultiverseArcade.Games.Syafiq
     /// GameManager untuk Arena Clash 3D (Game Syafiq).
     /// Mengatur skor, wave musuh, nyawa player, kondisi Game Over / Menang,
     /// pop-up ganti senjata, pemutaran BGM, serta tombol navigasi universal.
+    /// Mengimplementasikan kontrak IArcadeGame untuk integrasi global hub.
     /// </summary>
-    public class ArenaGameManager : MonoBehaviour
+    public class ArenaGameManager : MonoBehaviour, IArcadeGame
     {
         public static ArenaGameManager Instance { get; private set; }
+
+        public string GameId => "syafiq";
+        public void OnGameEnter() { }
+        public void OnGamePause() { }
+        public void OnGameResume() { }
+        public void OnGameRestart() => RestartGame();
+        public void OnGameExit() => StopBacksound();
 
         [Header("UI - Gameplay HUD")]
         [SerializeField] private Slider healthSlider;
@@ -74,6 +81,11 @@ namespace MultiverseArcade.Games.Syafiq
         private void Start()
         {
             Time.timeScale = 1.0f; // Pastikan waktu normal
+
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.RegisterArcadeGame(this);
+            }
 
             if (gameOverPanel != null)
                 gameOverPanel.SetActive(false);
@@ -140,6 +152,7 @@ namespace MultiverseArcade.Games.Syafiq
 
         private void OnDestroy()
         {
+            if (GameManager.Instance != null) GameManager.Instance.UnregisterArcadeGame(this);
             if (btnRetry != null) btnRetry.onClick.RemoveListener(RestartGame);
             if (btnBackSelection != null) btnBackSelection.onClick.RemoveListener(ReturnToGameSelection);
             if (btnMainMenu != null) btnMainMenu.onClick.RemoveListener(ReturnToMainMenu);
