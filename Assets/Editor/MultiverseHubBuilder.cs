@@ -11,7 +11,7 @@ using UnityEngine.Rendering.Universal;
 using TMPro;
 using MultiverseArcade.Core;
 using MultiverseArcade.UI;
-using MultiverseArcade.Games.Syafiq;
+using MultiverseArcade.Syafiq;
 
 namespace MultiverseArcade.EditorTools
 {
@@ -397,8 +397,8 @@ namespace MultiverseArcade.EditorTools
 
         private static void BuildSyafiqScene()
         {
-            // Panggil builder yang sudah ada untuk Arena Clash 3D agar mempertahankan seluruh fiturnya
-            MultiverseArcadeBuilder.BuildSyafiqScene();
+            // Panggil builder resmi MVP Arena Clash 3D (Fase 1-5)
+            ArenaClashBuilder.BuildArenaClashInternal(false);
         }
 
         private static void BuildPlaceholderGameScene(string scenePath, string gameId, string gameTitle, Color themeColor)

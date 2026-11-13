@@ -1,9 +1,10 @@
 {
     "name": "MultiverseArcade.Syafiq",
-    "rootNamespace": "MultiverseArcade.Games.Syafiq",
+    "rootNamespace": "MultiverseArcade.Syafiq",
     "references": [
         "MultiverseArcade.Core",
         "Unity.TextMeshPro",
+        "Unity.AI.Navigation",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Core.Runtime"
     ],

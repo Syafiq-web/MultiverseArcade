@@ -11,11 +11,11 @@ TagManager:
   - 
   - Water
   - UI
-  - 
-  - 
-  - 
-  - 
-  - 
+  - Syafiq_Player
+  - Syafiq_Enemy
+  - Syafiq_Projectile
+  - Syafiq_Wall
+  - Syafiq_Ground
   - 
   - 
   - 

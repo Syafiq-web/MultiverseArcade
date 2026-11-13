@@ -52,3 +52,36 @@ Dokumen ini mencatat setiap keputusan arsitektural dan teknis yang diambil berda
 - **Rujukan GDD:** Bagian 3.4. ("Tiap game punya asmdef sendiri yang merujuk MultiverseArcade.Core.")
 - **Keputusan:** Dibuat 3 asmdef awal: `MultiverseArcade.Core` di folder `Assets/_Project/Scripts/`, `MultiverseArcade.Syafiq` di `Assets/Games/Syafiq/Scripts/`, dan `MultiverseArcade.Editor` di `Assets/Editor/`.
 - **Alasan:** Mempercepat waktu kompilasi script dan mencegah dependensi silang terlarang antar-game anggota.
+
+
+---
+
+### DEC-007: Desain Arena 30x30 Simetris & Dynamic NavMesh Carving
+- **Pilihan yang Tersedia:** Arena asimetris dengan pre-baked static meshes vs. Arena simetris 30x30 u dengan NavMeshObstacle Carving.
+- **Rujukan GDD:** Bagian 5.8. ("Ukuran 30 x 30 u, simetris sumbu tengah agar adil bagi kedua tim. Tiga lane, obstacle memakai NavMeshObstacle carve.")
+- **Keputusan:** Arena 30x30 dibangun dengan pembatas dinding 2 u, zona Blue Spawn di barat daya (-10, 0, -10), Red Spawn di timur laut (10, 0, 10), dan 5 obstacle cover simetris dengan `NavMeshObstacle` (carve = true).
+- **Alasan:** Memberikan keseimbangan kompetitif 3v3 dan menjamin AI bot tidak menabrak rintangan atau tersangkut.
+
+---
+
+### DEC-008: Proteksi Friendly Fire via Team ID
+- **Pilihan yang Tersedia:** Memisahkan layer proyektil per tim (`Blue_Projectile`, `Red_Projectile`) vs. Pengecekan Team ID di `Health.cs`.
+- **Rujukan GDD:** Prompt & Bagian 5.6. ("Friendly fire dicegah lewat Team ID, bukan layer.")
+- **Keputusan:** Proyektil menggunakan satu layer bersama `Syafiq_Projectile`. Komponen `Health` memeriksa `info.attackerTeamId == _teamId`. Jika sama, damage ditolak secara deterministik.
+- **Alasan:** Menghemat kuota 32 layer Unity dan memastikan performa collision matrix tetap efisien.
+
+---
+
+### DEC-009: Prewarmed Object Pooling untuk Proyektil
+- **Pilihan yang Tersedia:** `Instantiate` dan `Destroy` per tembakan vs. `ProjectilePool` kapasitas 60.
+- **Rujukan GDD:** Bagian 5.5, 5.17 & AC-14. ("Object pooling untuk proyektil (pool 60) dan efek.")
+- **Keputusan:** Menggunakan `ProjectilePool` dengan 60 instance `PF_Projectile` yang di-prewarm saat start.
+- **Alasan:** Menghilangkan alokasi memori GC per frame dan menjamin framerate stabil >= 60 FPS pada pertempuran 3v3 dengan tembakan beruntun.
+
+---
+
+### DEC-010: Integrasi Pause Global Tanpa Duplikasi
+- **Pilihan yang Tersedia:** Membuat canvas pause khusus di dalam scene `Game_Syafiq` vs. Menghubungkan ke `GlobalPauseOverlay` (Esc) yang sudah ada di Hub.
+- **Rujukan GDD:** Prompt & Bagian 2.2. ("Pakai Global Pause Overlay yang sudah ada, jangan buat duplikat; hubungkan ke OnGamePause/OnGameResume.")
+- **Keputusan:** Menghubungkan tombol Esc dan event `IArcadeGame.OnGamePause()` / `OnGameResume()` ke sistem pause global Hub.
+- **Alasan:** Menjamin konsistensi UX di seluruh 5 game arcade dan mencegah duplikasi kode atau konflik timeScale.

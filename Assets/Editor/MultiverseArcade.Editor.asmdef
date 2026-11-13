@@ -6,6 +6,8 @@
         "MultiverseArcade.Syafiq",
         "Unity.TextMeshPro",
         "Unity.TextMeshPro.Editor",
+        "Unity.AI.Navigation",
+        "Unity.AI.Navigation.Editor",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Universal.Editor"
     ],
