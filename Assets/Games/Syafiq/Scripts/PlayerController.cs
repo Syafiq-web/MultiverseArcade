@@ -1,11 +1,13 @@
 using System.Collections;
+using MultiverseArcade.Audio;
 using UnityEngine;
 
 namespace MultiverseArcade.Games.Syafiq
 {
     /// <summary>
     /// Mengontrol pergerakan (WASD), arah bidik presisi (Mouse Aim dengan Reticle/Laser),
-    /// penembakan peluru plasma, penerimaan damage, flash efek, dan kematian hero.
+    /// penembakan peluru plasma, audio SFX tembakan & damage, flash efek, dan kematian hero.
+    /// Dilengkapi batas collider arena yang sempurna (fail-safe clamp).
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
@@ -20,6 +22,10 @@ namespace MultiverseArcade.Games.Syafiq
         [SerializeField] private float fireRate = 0.18f;
         [SerializeField] private int maxHealth = 100;
 
+        [Header("Audio SFX")]
+        [SerializeField] private AudioClip shootSound;
+        [SerializeField] private AudioClip hurtSound;
+
         [Header("Visual Feedback")]
         [SerializeField] private Transform modelHolder;
         [SerializeField] private Renderer playerRenderer;
@@ -28,6 +34,7 @@ namespace MultiverseArcade.Games.Syafiq
         private Camera mainCamera;
         private Plane aimPlane;
         private Vector3 currentAimPoint;
+        private AudioSource audioSource;
 
         private int currentHealth;
         private float nextFireTime;
@@ -45,8 +52,23 @@ namespace MultiverseArcade.Games.Syafiq
         private void Awake()
         {
             characterController = GetComponent<CharacterController>();
+            // Pengaturan parameter collision CharacterController yang optimal
+            characterController.center = new Vector3(0, 1f, 0);
+            characterController.radius = 0.5f;
+            characterController.height = 2f;
+            characterController.skinWidth = 0.08f;
+            characterController.minMoveDistance = 0f;
+
             mainCamera = Camera.main;
             currentHealth = maxHealth;
+
+            audioSource = GetComponent<AudioSource>();
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+                audioSource.playOnAwake = false;
+                audioSource.spatialBlend = 0.2f; // Sebagian 2D agar terdengar jelas
+            }
 
             if (playerRenderer == null)
             {
@@ -67,17 +89,17 @@ namespace MultiverseArcade.Games.Syafiq
             laserLine = gameObject.GetComponent<LineRenderer>();
             if (laserLine == null) laserLine = gameObject.AddComponent<LineRenderer>();
 
-            laserLine.startWidth = 0.05f;
+            laserLine.startWidth = 0.06f;
             laserLine.endWidth = 0.02f;
             laserLine.positionCount = 2;
             laserLine.material = new Material(Shader.Find("Sprites/Default"));
-            laserLine.startColor = new Color(0f, 1f, 1f, 0.7f);
-            laserLine.endColor = new Color(0f, 1f, 1f, 0.1f);
+            laserLine.startColor = new Color(0f, 1f, 1f, 0.75f);
+            laserLine.endColor = new Color(0f, 1f, 1f, 0.15f);
 
             // 2. Setup Reticle Bidik di Tanah
             aimReticle = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             aimReticle.name = "Aim_Reticle";
-            aimReticle.transform.localScale = new Vector3(0.8f, 0.02f, 0.8f);
+            aimReticle.transform.localScale = new Vector3(0.85f, 0.02f, 0.85f);
             Collider retCol = aimReticle.GetComponent<Collider>();
             if (retCol != null) Destroy(retCol);
 
@@ -85,7 +107,7 @@ namespace MultiverseArcade.Games.Syafiq
             if (retRend != null)
             {
                 Material retMat = new Material(Shader.Find("Sprites/Default"));
-                retMat.color = new Color(0f, 1f, 0.9f, 0.6f);
+                retMat.color = new Color(0f, 1f, 0.9f, 0.65f);
                 retRend.material = retMat;
             }
         }
@@ -136,10 +158,10 @@ namespace MultiverseArcade.Games.Syafiq
             Vector3 motion = (moveDirection * moveSpeed) + new Vector3(0, velocity.y, 0);
             characterController.Move(motion * Time.deltaTime);
 
-            // Batasi posisi agar tidak keluar dari arena (30x30)
+            // Batasi posisi agar tidak pernah bisa menembus dinding arena (32x32 arena)
             Vector3 clampedPos = transform.position;
-            clampedPos.x = Mathf.Clamp(clampedPos.x, -14.5f, 14.5f);
-            clampedPos.z = Mathf.Clamp(clampedPos.z, -14.5f, 14.5f);
+            clampedPos.x = Mathf.Clamp(clampedPos.x, -14.2f, 14.2f);
+            clampedPos.z = Mathf.Clamp(clampedPos.z, -14.2f, 14.2f);
             transform.position = clampedPos;
         }
 
@@ -148,8 +170,8 @@ namespace MultiverseArcade.Games.Syafiq
             if (mainCamera == null) mainCamera = Camera.main;
             if (mainCamera == null) return;
 
-            // Update bidang bidik sejajar tinggi badan player
-            aimPlane.SetNormalAndPosition(Vector3.up, new Vector3(0, transform.position.y, 0));
+            // Bidang bidik sejajar tinggi mata/senjata
+            aimPlane.SetNormalAndPosition(Vector3.up, new Vector3(0, transform.position.y + 0.3f, 0));
 
             Ray ray = mainCamera.ScreenPointToRay(Input.mousePosition);
             if (aimPlane.Raycast(ray, out float distance))
@@ -207,11 +229,14 @@ namespace MultiverseArcade.Games.Syafiq
             }
             shootDir.Normalize();
 
+            // Putar sound tembakan laser
+            PlaySound(shootSound, 0.7f);
+
             if (projectilePrefab != null)
             {
                 GameObject proj = Instantiate(projectilePrefab, spawnPos, Quaternion.LookRotation(shootDir));
                 Projectile pComp = proj.GetComponent<Projectile>();
-                if (pComp != null) pComp.Init(shootDir, 30f, 30, true);
+                if (pComp != null) pComp.Init(shootDir, 32f, 30, true);
             }
             else
             {
@@ -228,10 +253,10 @@ namespace MultiverseArcade.Games.Syafiq
                 }
 
                 Projectile proj = bolt.AddComponent<Projectile>();
-                proj.Init(shootDir, 30f, 30, true);
+                proj.Init(shootDir, 32f, 30, true);
             }
 
-            // Recoil
+            // Muzzle recoil
             if (modelHolder != null)
             {
                 modelHolder.localPosition = new Vector3(0, 0, -0.15f);
@@ -253,13 +278,16 @@ namespace MultiverseArcade.Games.Syafiq
             currentHealth -= amount;
             Debug.Log($"[PlayerController] Player terkena damage {amount}! Sisa HP: {currentHealth}");
 
+            // Putar sound terkena damage
+            PlaySound(hurtSound, 0.9f);
+
             // Flash visual warna merah
             StartCoroutine(DamageFlashRoutine());
 
-            // Screen shake
+            // Screen shake kamera
             if (ArenaCameraController.Instance != null)
             {
-                ArenaCameraController.Instance.TriggerShake(0.2f, 0.4f);
+                ArenaCameraController.Instance.TriggerShake(0.22f, 0.45f);
             }
 
             if (ArenaGameManager.Instance != null)
@@ -300,7 +328,7 @@ namespace MultiverseArcade.Games.Syafiq
             // Efek partikel ledakan kematian player
             SpawnDeathExplosion();
 
-            // Sembunyikan badan player
+            // Sembunyikan badan player & matikan controller
             if (playerRenderer != null) playerRenderer.enabled = false;
             characterController.enabled = false;
 
@@ -312,7 +340,7 @@ namespace MultiverseArcade.Games.Syafiq
 
         private void SpawnDeathExplosion()
         {
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 10; i++)
             {
                 GameObject bit = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 bit.transform.position = transform.position + Random.insideUnitSphere * 0.5f;
@@ -323,8 +351,26 @@ namespace MultiverseArcade.Games.Syafiq
                 if (r != null) r.material.color = Color.cyan;
 
                 Rigidbody rb = bit.AddComponent<Rigidbody>();
-                rb.AddExplosionForce(350f, transform.position, 3f);
+                rb.AddExplosionForce(400f, transform.position, 3.5f);
                 Destroy(bit, 1.5f);
+            }
+        }
+
+        private void PlaySound(AudioClip clip, float volume = 1f)
+        {
+            if (clip == null) return;
+
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySFX(clip);
+            }
+            else if (audioSource != null)
+            {
+                audioSource.PlayOneShot(clip, volume);
+            }
+            else
+            {
+                AudioSource.PlayClipAtPoint(clip, transform.position, volume);
             }
         }
 

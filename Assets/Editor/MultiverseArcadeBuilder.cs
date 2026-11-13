@@ -27,10 +27,10 @@ namespace MultiverseArcade.EditorTools
         {
             EditorApplication.delayCall += () =>
             {
-                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v5", false))
+                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v6", false))
                 {
-                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v5", true);
-                    Debug.Log("[MultiverseArcadeAutoBuilder] Membangun ulang dan memperbarui semua scene Multiverse Arcade...");
+                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v6", true);
+                    Debug.Log("[MultiverseArcadeAutoBuilder] Membangun ulang scene dengan Audio SFX, BGM, dan Colliders sempurna...");
                     MultiverseArcadeBuilder.BuildAllScenesInternal(false);
                 }
             };
@@ -104,6 +104,17 @@ namespace MultiverseArcade.EditorTools
             GameObject camGo = CreateCamera(new Vector3(0, 1, -10), Quaternion.identity, new Color(0.05f, 0.07f, 0.12f));
             CreateDirectionalLight(new Vector3(50, -30, 0), Color.white, 1.0f);
             CreateEventSystem();
+
+            // Background Music
+            AudioClip bgmClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/_Project/Audio/bgm_arcade_action.wav");
+            if (bgmClip != null)
+            {
+                AudioSource bgmSource = camGo.AddComponent<AudioSource>();
+                bgmSource.clip = bgmClip;
+                bgmSource.loop = true;
+                bgmSource.playOnAwake = true;
+                bgmSource.volume = 0.5f;
+            }
 
             // 2. Core Managers
             CreateCoreManagers();
@@ -327,26 +338,34 @@ namespace MultiverseArcade.EditorTools
             Material visorMat = CreateURPMaterial("M_VisorDark", new Color(0.02f, 0.05f, 0.1f), 0.9f);
             Material neonGlowMat = CreateURPMaterial("M_NeonCyanGlow", new Color(0f, 1f, 1f), 0.8f);
 
+            // Audio Clips (Generated WAV)
+            AudioClip shootClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/sfx_laser_shoot.wav");
+            AudioClip hurtClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/sfx_player_hurt.wav");
+            AudioClip hitClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/sfx_enemy_hit.wav");
+            AudioClip explosionClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/sfx_explosion.wav");
+            AudioClip gameOverClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/sfx_game_over.wav");
+            AudioClip bgmClip = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Games/Syafiq/Audio/bgm_arcade_action.wav");
+
             // 1. Directional Light & Atmosphere
             CreateDirectionalLight(new Vector3(50, -45, 0), new Color(0.85f, 0.9f, 1.0f), 1.2f);
             CreateCoreManagers();
 
-            // 2. Arena Geometry
+            // 2. Arena Geometry (Batas & Collider Kokoh)
             GameObject arenaRoot = new GameObject("--- ARENA ENVIRONMENT ---");
 
-            // Floor (30x1x30)
+            // Floor (34x1x34)
             GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
             floor.name = "Arena_Floor";
             floor.transform.parent = arenaRoot.transform;
             floor.transform.position = new Vector3(0, -0.5f, 0);
-            floor.transform.localScale = new Vector3(32, 1, 32);
+            floor.transform.localScale = new Vector3(34, 1, 34);
             floor.GetComponent<Renderer>().sharedMaterial = floorMat;
 
-            // 4 Boundary Walls
-            CreateWall(arenaRoot.transform, "Wall_North", new Vector3(0, 1.5f, 16f), new Vector3(32, 3, 1), wallMat, neonGlowMat);
-            CreateWall(arenaRoot.transform, "Wall_South", new Vector3(0, 1.5f, -16f), new Vector3(32, 3, 1), wallMat, neonGlowMat);
-            CreateWall(arenaRoot.transform, "Wall_East",  new Vector3(16f, 1.5f, 0),  new Vector3(1, 3, 32), wallMat, neonGlowMat);
-            CreateWall(arenaRoot.transform, "Wall_West",  new Vector3(-16f, 1.5f, 0), new Vector3(1, 3, 32), wallMat, neonGlowMat);
+            // 4 Boundary Walls (Tinggi 5 unit, tebal 2 unit - collider sempurna)
+            CreateWall(arenaRoot.transform, "Wall_North", new Vector3(0, 2.5f, 16.5f), new Vector3(35, 5, 2), wallMat, neonGlowMat);
+            CreateWall(arenaRoot.transform, "Wall_South", new Vector3(0, 2.5f, -16.5f), new Vector3(35, 5, 2), wallMat, neonGlowMat);
+            CreateWall(arenaRoot.transform, "Wall_East",  new Vector3(16.5f, 2.5f, 0),  new Vector3(2, 5, 35), wallMat, neonGlowMat);
+            CreateWall(arenaRoot.transform, "Wall_West",  new Vector3(-16.5f, 2.5f, 0), new Vector3(2, 5, 35), wallMat, neonGlowMat);
 
             // 4 Obstacle Pillars
             CreatePillar(arenaRoot.transform, "Pillar_NW", new Vector3(-7, 2f, 7), pillarMat);
@@ -366,6 +385,7 @@ namespace MultiverseArcade.EditorTools
             GameObject spawnerGo = new GameObject("EnemySpawner");
             EnemySpawner spawner = spawnerGo.AddComponent<EnemySpawner>();
             SetPrivateField(spawner, "spawnPoints", spawnPoints);
+            spawner.SetAudioClips(hitClip, explosionClip);
 
             // 3. Player Character
             GameObject player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -378,7 +398,9 @@ namespace MultiverseArcade.EditorTools
             CharacterController cc = player.AddComponent<CharacterController>();
             cc.height = 2f;
             cc.radius = 0.5f;
-            cc.center = new Vector3(0, 0, 0);
+            cc.center = new Vector3(0, 1f, 0);
+            cc.skinWidth = 0.08f;
+            cc.minMoveDistance = 0f;
 
             // Model holder & Visor
             GameObject visor = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -406,6 +428,8 @@ namespace MultiverseArcade.EditorTools
             // PlayerController
             PlayerController playerCtrl = player.AddComponent<PlayerController>();
             SetPrivateField(playerCtrl, "firePoint", firePointGo.transform);
+            SetPrivateField(playerCtrl, "shootSound", shootClip);
+            SetPrivateField(playerCtrl, "hurtSound", hurtClip);
 
             // 4. Camera with Top-Down Isometric Tracker
             GameObject camGo = CreateCamera(new Vector3(0, 16f, -11f), Quaternion.Euler(55, 0, 0), new Color(0.04f, 0.05f, 0.08f));
@@ -509,6 +533,7 @@ namespace MultiverseArcade.EditorTools
             SetPrivateField(arenaMgr, "btnRetry", btnRetry);
             SetPrivateField(arenaMgr, "btnBackSelection", btnSelection);
             SetPrivateField(arenaMgr, "btnMainMenu", btnMainMenu);
+            arenaMgr.SetAudioClips(bgmClip, gameOverClip);
 
             // 6. GameOverlayUI (Universal Pause / Menu)
             CreateOverlayCanvas();

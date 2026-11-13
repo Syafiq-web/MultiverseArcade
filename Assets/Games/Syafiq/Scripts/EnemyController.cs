@@ -1,11 +1,13 @@
 using System.Collections;
+using MultiverseArcade.Audio;
 using UnityEngine;
 
 namespace MultiverseArcade.Games.Syafiq
 {
     /// <summary>
     /// AI Musuh (Chaser & Shooter) dengan Rigidbody kinematis, deteksi tabrakan presisi,
-    /// flash saat kena tembak, damage ke Player, dan efek ledakan saat gugur.
+    /// pemisahan antar musuh (anti-clumping separation), flash saat tertembak, audio SFX,
+    /// damage ke Player, dan efek ledakan saat gugur.
     /// </summary>
     [RequireComponent(typeof(Collider))]
     public class EnemyController : MonoBehaviour
@@ -25,6 +27,10 @@ namespace MultiverseArcade.Games.Syafiq
         [SerializeField] private Transform firePoint;
         [SerializeField] private GameObject projectilePrefab;
 
+        [Header("Audio SFX")]
+        [SerializeField] private AudioClip hitSound;
+        [SerializeField] private AudioClip explosionSound;
+
         private Transform playerTarget;
         private PlayerController playerScript;
         private Renderer enemyRenderer;
@@ -39,6 +45,15 @@ namespace MultiverseArcade.Games.Syafiq
 
         private void Awake()
         {
+            // Setup CapsuleCollider jika ada
+            CapsuleCollider cc = GetComponent<CapsuleCollider>();
+            if (cc != null)
+            {
+                cc.center = new Vector3(0, 1f, 0);
+                cc.radius = 0.5f;
+                cc.height = 2f;
+            }
+
             // Pastikan memiliki Rigidbody kinematis agar event trigger physics 100% aktif
             Rigidbody rb = GetComponent<Rigidbody>();
             if (rb == null)
@@ -47,6 +62,7 @@ namespace MultiverseArcade.Games.Syafiq
             }
             rb.isKinematic = true;
             rb.useGravity = false;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
             enemyRenderer = GetComponent<Renderer>();
             if (enemyRenderer != null && enemyRenderer.material != null)
@@ -85,17 +101,21 @@ namespace MultiverseArcade.Games.Syafiq
             toPlayer.y = 0;
             float distance = toPlayer.magnitude;
 
-            // Putar arah menghadap player
+            // Rotasi menghadap player
             if (toPlayer.sqrMagnitude > 0.05f)
             {
                 Quaternion targetRot = Quaternion.LookRotation(toPlayer);
                 transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, Time.deltaTime * 10f);
             }
 
+            // Hitung gaya separasi antar musuh (agar musuh tidak menumpuk/clumping)
+            Vector3 separationForce = CalculateSeparation();
+
             if (type == EnemyType.Chaser)
             {
-                // Kejar pemain langsung
-                transform.position += toPlayer.normalized * moveSpeed * Time.deltaTime;
+                // Kejar pemain + gaya penyebaran
+                Vector3 moveDir = (toPlayer.normalized + separationForce).normalized;
+                transform.position += moveDir * moveSpeed * Time.deltaTime;
 
                 // Garansi jarak dekat (Proximity Damage) jika menempel player
                 if (distance <= 1.35f && Time.time >= nextContactTime)
@@ -109,12 +129,18 @@ namespace MultiverseArcade.Games.Syafiq
                 // Jaga jarak tembak
                 if (distance > attackRange)
                 {
-                    transform.position += toPlayer.normalized * moveSpeed * Time.deltaTime;
+                    Vector3 moveDir = (toPlayer.normalized + separationForce).normalized;
+                    transform.position += moveDir * moveSpeed * Time.deltaTime;
                 }
                 else if (distance < attackRange * 0.5f)
                 {
                     // Mundur perlahan jika terlalu dekat
-                    transform.position -= toPlayer.normalized * (moveSpeed * 0.6f) * Time.deltaTime;
+                    Vector3 moveDir = (-toPlayer.normalized + separationForce).normalized;
+                    transform.position += moveDir * (moveSpeed * 0.6f) * Time.deltaTime;
+                }
+                else if (separationForce.sqrMagnitude > 0.01f)
+                {
+                    transform.position += separationForce * (moveSpeed * 0.5f) * Time.deltaTime;
                 }
 
                 // Menembak berkala
@@ -124,6 +150,40 @@ namespace MultiverseArcade.Games.Syafiq
                     ShootAtPlayer();
                 }
             }
+
+            // Batasi agar musuh tidak tembus dinding arena
+            Vector3 clampedPos = transform.position;
+            clampedPos.x = Mathf.Clamp(clampedPos.x, -14.2f, 14.2f);
+            clampedPos.z = Mathf.Clamp(clampedPos.z, -14.2f, 14.2f);
+            transform.position = clampedPos;
+        }
+
+        private Vector3 CalculateSeparation()
+        {
+            Vector3 separation = Vector3.zero;
+            Collider[] neighbors = Physics.OverlapSphere(transform.position, 1.4f);
+            int count = 0;
+
+            foreach (var col in neighbors)
+            {
+                if (col.gameObject != gameObject && col.GetComponent<EnemyController>() != null)
+                {
+                    Vector3 diff = transform.position - col.transform.position;
+                    diff.y = 0;
+                    if (diff.sqrMagnitude > 0.001f)
+                    {
+                        separation += diff.normalized / diff.magnitude;
+                        count++;
+                    }
+                }
+            }
+
+            if (count > 0)
+            {
+                separation /= count;
+            }
+
+            return separation * 0.8f;
         }
 
         private void ShootAtPlayer()
@@ -137,7 +197,7 @@ namespace MultiverseArcade.Games.Syafiq
             {
                 GameObject projGo = Instantiate(projectilePrefab, spawnPos, Quaternion.LookRotation(shootDir));
                 Projectile proj = projGo.GetComponent<Projectile>();
-                if (proj != null) proj.Init(shootDir, 16f, 15, false);
+                if (proj != null) proj.Init(shootDir, 18f, 15, false);
             }
             else
             {
@@ -154,7 +214,7 @@ namespace MultiverseArcade.Games.Syafiq
                 }
 
                 Projectile proj = bolt.AddComponent<Projectile>();
-                proj.Init(shootDir, 16f, 15, false);
+                proj.Init(shootDir, 18f, 15, false);
             }
         }
 
@@ -179,6 +239,9 @@ namespace MultiverseArcade.Games.Syafiq
 
             currentHealth -= damage;
             Debug.Log($"[EnemyController] Musuh {name} terkena {damage} damage! Sisa HP: {currentHealth}");
+
+            // Putar sound hit
+            PlaySound(hitSound, 0.6f);
 
             // Flash visual warna putih saat tertembak
             StartCoroutine(HitFlashRoutine());
@@ -209,6 +272,9 @@ namespace MultiverseArcade.Games.Syafiq
 
             Debug.Log($"[EnemyController] Musuh {name} hancur! +{scoreValue} Skor");
 
+            // Putar sound ledakan
+            PlaySound(explosionSound, 0.85f);
+
             if (ArenaGameManager.Instance != null)
             {
                 ArenaGameManager.Instance.OnEnemyDefeated(scoreValue);
@@ -222,20 +288,40 @@ namespace MultiverseArcade.Games.Syafiq
 
         private void SpawnDeathEffect()
         {
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < 8; i++)
             {
                 GameObject piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 piece.transform.position = transform.position + Random.insideUnitSphere * 0.4f;
-                piece.transform.localScale = Vector3.one * 0.2f;
+                piece.transform.localScale = Vector3.one * 0.22f;
                 Destroy(piece.GetComponent<Collider>());
 
                 Renderer r = piece.GetComponent<Renderer>();
                 if (r != null) r.material.color = baseColor;
 
                 Rigidbody rb = piece.AddComponent<Rigidbody>();
-                rb.AddExplosionForce(250f, transform.position, 2f);
+                rb.AddExplosionForce(300f, transform.position, 2.5f);
                 Destroy(piece, 1.2f);
             }
+        }
+
+        private void PlaySound(AudioClip clip, float volume = 1f)
+        {
+            if (clip == null) return;
+
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySFX(clip);
+            }
+            else
+            {
+                AudioSource.PlayClipAtPoint(clip, transform.position, volume);
+            }
+        }
+
+        public void SetAudioClips(AudioClip hit, AudioClip explosion)
+        {
+            hitSound = hit;
+            explosionSound = explosion;
         }
     }
 }

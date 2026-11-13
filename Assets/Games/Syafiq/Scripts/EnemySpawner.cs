@@ -5,7 +5,7 @@ namespace MultiverseArcade.Games.Syafiq
 {
     /// <summary>
     /// Mengelola spawn wave musuh (Chasers dan Shooters) di titik-titik sekitar arena.
-    /// Memiliki fallback prosedural jika prefab belum di-assign di Inspector.
+    /// Dilengkapi audio SFX dan konfigurasi collider fisik yang sempurna.
     /// </summary>
     public class EnemySpawner : MonoBehaviour
     {
@@ -15,9 +15,13 @@ namespace MultiverseArcade.Games.Syafiq
         [SerializeField] private GameObject chaserPrefab;
         [SerializeField] private GameObject shooterPrefab;
 
+        [Header("Audio SFX untuk Musuh")]
+        [SerializeField] private AudioClip enemyHitClip;
+        [SerializeField] private AudioClip enemyExplosionClip;
+
         [Header("Spawn Positions")]
         [SerializeField] private Transform[] spawnPoints;
-        [SerializeField] private float arenaSpawnRadius = 13f;
+        [SerializeField] private float arenaSpawnRadius = 12.5f;
 
         [Header("Wave Configuration")]
         [SerializeField] private float timeBetweenWaves = 3.5f;
@@ -98,26 +102,36 @@ namespace MultiverseArcade.Games.Syafiq
         {
             Vector3 spawnPos = GetSpawnPosition();
 
+            GameObject enemyGo = null;
             if (type == EnemyController.EnemyType.Chaser)
             {
                 if (chaserPrefab != null)
                 {
-                    Instantiate(chaserPrefab, spawnPos, Quaternion.identity);
+                    enemyGo = Instantiate(chaserPrefab, spawnPos, Quaternion.identity);
                 }
                 else
                 {
-                    CreateProceduralEnemy(spawnPos, EnemyController.EnemyType.Chaser);
+                    enemyGo = CreateProceduralEnemy(spawnPos, EnemyController.EnemyType.Chaser);
                 }
             }
             else
             {
                 if (shooterPrefab != null)
                 {
-                    Instantiate(shooterPrefab, spawnPos, Quaternion.identity);
+                    enemyGo = Instantiate(shooterPrefab, spawnPos, Quaternion.identity);
                 }
                 else
                 {
-                    CreateProceduralEnemy(spawnPos, EnemyController.EnemyType.Shooter);
+                    enemyGo = CreateProceduralEnemy(spawnPos, EnemyController.EnemyType.Shooter);
+                }
+            }
+
+            if (enemyGo != null)
+            {
+                EnemyController ctrl = enemyGo.GetComponent<EnemyController>();
+                if (ctrl != null)
+                {
+                    ctrl.SetAudioClips(enemyHitClip, enemyExplosionClip);
                 }
             }
         }
@@ -172,23 +186,33 @@ namespace MultiverseArcade.Games.Syafiq
             GameObject enemy = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             enemy.name = type == EnemyController.EnemyType.Chaser ? "Chaser_Drone" : "Shooter_Drone";
             enemy.transform.position = position;
-            enemy.tag = "Untagged";
 
-            // Atur visual material
+            // Setup Collider & Material yang presisi
+            CapsuleCollider cc = enemy.GetComponent<CapsuleCollider>();
+            if (cc != null)
+            {
+                cc.center = new Vector3(0, 0, 0);
+                cc.radius = 0.5f;
+                cc.height = 2f;
+            }
+
             Renderer rend = enemy.GetComponent<Renderer>();
             if (rend != null)
             {
                 Color color = (type == EnemyController.EnemyType.Chaser) 
-                    ? new Color(0.9f, 0.2f, 0.2f) // Merah tajam untuk Chaser
-                    : new Color(0.9f, 0.6f, 0.1f); // Oranye untuk Shooter
+                    ? new Color(0.95f, 0.2f, 0.2f) // Merah tajam untuk Chaser
+                    : new Color(0.95f, 0.6f, 0.1f); // Oranye untuk Shooter
                 rend.material.color = color;
             }
 
-            // Tambahkan komponen EnemyController
             EnemyController controller = enemy.AddComponent<EnemyController>();
-
-            // Gunakan refleksi atau serialisasi jika perlu, atau set property
             return enemy;
+        }
+
+        public void SetAudioClips(AudioClip hit, AudioClip explosion)
+        {
+            enemyHitClip = hit;
+            enemyExplosionClip = explosion;
         }
     }
 }

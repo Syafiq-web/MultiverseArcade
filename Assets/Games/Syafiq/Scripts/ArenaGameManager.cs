@@ -1,3 +1,4 @@
+using MultiverseArcade.Audio;
 using MultiverseArcade.Core;
 using TMPro;
 using UnityEngine;
@@ -7,8 +8,8 @@ namespace MultiverseArcade.Games.Syafiq
 {
     /// <summary>
     /// GameManager untuk Arena Clash 3D (Game Syafiq).
-    /// Mengatur skor, wave musuh, nyawa player, dan kondisi Game Over / Menang,
-    /// serta tombol navigasi kembali ke Game Selection atau Main Menu.
+    /// Mengatur skor, wave musuh, nyawa player, kondisi Game Over / Menang,
+    /// pemutaran BGM & audio game over, serta tombol navigasi universal.
     /// </summary>
     public class ArenaGameManager : MonoBehaviour
     {
@@ -29,9 +30,11 @@ namespace MultiverseArcade.Games.Syafiq
         [SerializeField] private Button btnBackSelection;
         [SerializeField] private Button btnMainMenu;
 
-        [Header("Audio (Optional)")]
-        [SerializeField] private AudioSource sfxAudioSource;
+        [Header("Audio Settings")]
+        [SerializeField] private AudioClip bgmClip;
+        [SerializeField] private AudioClip gameOverSound;
 
+        private AudioSource internalBgmSource;
         private int currentScore = 0;
         private int currentWave = 1;
         private bool isGameOver = false;
@@ -50,6 +53,15 @@ namespace MultiverseArcade.Games.Syafiq
                 return;
             }
             Instance = this;
+
+            internalBgmSource = GetComponent<AudioSource>();
+            if (internalBgmSource == null)
+            {
+                internalBgmSource = gameObject.AddComponent<AudioSource>();
+                internalBgmSource.loop = true;
+                internalBgmSource.playOnAwake = false;
+                internalBgmSource.volume = 0.65f;
+            }
         }
 
         private void Start()
@@ -74,6 +86,36 @@ namespace MultiverseArcade.Games.Syafiq
             if (waveNotificationText != null)
             {
                 waveNotificationText.gameObject.SetActive(false);
+            }
+
+            // Putar Backsound BGM
+            PlayBacksound();
+        }
+
+        private void PlayBacksound()
+        {
+            if (bgmClip == null) return;
+
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayBGM(bgmClip);
+            }
+            else if (internalBgmSource != null)
+            {
+                internalBgmSource.clip = bgmClip;
+                internalBgmSource.Play();
+            }
+        }
+
+        private void StopBacksound()
+        {
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.StopBGM();
+            }
+            else if (internalBgmSource != null)
+            {
+                internalBgmSource.Stop();
             }
         }
 
@@ -164,6 +206,16 @@ namespace MultiverseArcade.Games.Syafiq
             if (isGameOver) return;
             isGameOver = true;
 
+            // Hentikan BGM & mainkan SFX Game Over
+            StopBacksound();
+            if (gameOverSound != null)
+            {
+                if (AudioManager.Instance != null)
+                    AudioManager.Instance.PlaySFX(gameOverSound);
+                else
+                    AudioSource.PlayClipAtPoint(gameOverSound, Camera.main ? Camera.main.transform.position : transform.position, 1f);
+            }
+
             int savedHighScore = PlayerPrefs.GetInt(HIGH_SCORE_KEY, 0);
             if (currentScore > savedHighScore)
             {
@@ -225,6 +277,12 @@ namespace MultiverseArcade.Games.Syafiq
             {
                 UnityEngine.SceneManagement.SceneManager.LoadScene(SceneNames.MainMenu);
             }
+        }
+
+        public void SetAudioClips(AudioClip bgm, AudioClip gameOver)
+        {
+            bgmClip = bgm;
+            gameOverSound = gameOver;
         }
     }
 }
