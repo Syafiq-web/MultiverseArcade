@@ -27,10 +27,10 @@ namespace MultiverseArcade.EditorTools
         {
             EditorApplication.delayCall += () =>
             {
-                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v9", false))
+                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v10", false))
                 {
-                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v9", true);
-                    Debug.Log("[MultiverseArcadeAutoBuilder] Membangun ulang scene dengan Zombie Chibi Kartun 3D & Sistem Senjata Shotgun/Rifle...");
+                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v10", true);
+                    Debug.Log("[MultiverseArcadeAutoBuilder] Membangun ulang scene dengan UniversalAdditionalCameraData dan konfigurasi kamera URP penuh...");
                     MultiverseArcadeBuilder.BuildAllScenesInternal(false);
                 }
             };
@@ -790,6 +790,24 @@ namespace MultiverseArcade.EditorTools
             rect.offsetMax = Vector2.zero;
         }
 
+        [MenuItem("Tools/Multiverse Arcade/📂 Open MainMenu Scene", false, 20)]
+        public static void OpenMainMenu()
+        {
+            EditorSceneManager.OpenScene(SCENE_MAIN_MENU);
+        }
+
+        [MenuItem("Tools/Multiverse Arcade/📂 Open Syafiq Game Scene", false, 21)]
+        public static void OpenSyafiqScene()
+        {
+            EditorSceneManager.OpenScene(SCENE_SYAFIQ);
+        }
+
+        [MenuItem("Tools/Multiverse Arcade/📂 Open GameSelection Scene", false, 22)]
+        public static void OpenGameSelection()
+        {
+            EditorSceneManager.OpenScene(SCENE_GAME_SELECTION);
+        }
+
         private static GameObject CreateCamera(Vector3 position, Quaternion rotation, Color clearColor)
         {
             GameObject camGo = new GameObject("Main Camera");
@@ -797,7 +815,17 @@ namespace MultiverseArcade.EditorTools
             Camera cam = camGo.AddComponent<Camera>();
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = clearColor;
+            cam.nearClipPlane = 0.3f;
+            cam.farClipPlane = 1000f;
+            cam.depth = 0;
+            cam.enabled = true;
             camGo.AddComponent<AudioListener>();
+
+            // Pastikan komponen URP UniversalAdditionalCameraData terpasang agar kamera dirender di pipeline URP
+            var urpData = camGo.AddComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+            urpData.renderPostProcessing = true;
+            urpData.renderShadows = true;
+
             camGo.transform.position = position;
             camGo.transform.rotation = rotation;
             return camGo;
