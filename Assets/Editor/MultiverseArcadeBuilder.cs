@@ -27,10 +27,10 @@ namespace MultiverseArcade.EditorTools
         {
             EditorApplication.delayCall += () =>
             {
-                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v3", false))
+                if (!EditorPrefs.GetBool("MultiverseArcade_AutoBuilt_v5", false))
                 {
-                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v3", true);
-                    Debug.Log("[MultiverseArcadeAutoBuilder] Melakukan inisialisasi awal pembangunan semua scene...");
+                    EditorPrefs.SetBool("MultiverseArcade_AutoBuilt_v5", true);
+                    Debug.Log("[MultiverseArcadeAutoBuilder] Membangun ulang dan memperbarui semua scene Multiverse Arcade...");
                     MultiverseArcadeBuilder.BuildAllScenesInternal(false);
                 }
             };
@@ -227,7 +227,7 @@ namespace MultiverseArcade.EditorTools
             Button btnRisa   = CreateGameCard(cardsContainer.transform, "Puzzle Matrix", "Risa", "Tantangan teka-teki logika grid cyber.", "EXPLORE DEMO", new Color(0.65f, 0.3f, 0.85f), false);
 
             // Back Button
-            Button btnBack = CreateButton("BackButton", root, "◀ KEMBALI KE MENU UTAMA", new Vector2(0, 50), new Vector2(340, 52), new Color(0.18f, 0.22f, 0.3f), Color.white, 18);
+            Button btnBack = CreateButton("BackButton", root, "< KEMBALI KE MENU UTAMA", new Vector2(0, 50), new Vector2(340, 52), new Color(0.18f, 0.22f, 0.3f), Color.white, 18);
             RectTransform backRect = btnBack.GetComponent<RectTransform>();
             backRect.anchorMin = new Vector2(0.5f, 0f);
             backRect.anchorMax = new Vector2(0.5f, 0f);
@@ -442,18 +442,18 @@ namespace MultiverseArcade.EditorTools
             wtr.anchoredPosition = new Vector2(0, -40);
             wtr.sizeDelta = new Vector2(300, 45);
 
-            // --- Top Right Score Display ---
-            TextMeshProUGUI scoreText = CreateTMPText("ScoreText", hudRoot, "SCORE: 0", 28, FontStyles.Bold, new Color(0f, 0.95f, 1f));
+            // --- Top Right Score Display (Disebelah kiri tombol Pause agar tidak tumpang tindih) ---
+            TextMeshProUGUI scoreText = CreateTMPText("ScoreText", hudRoot, "SCORE: 0", 26, FontStyles.Bold, new Color(0f, 0.95f, 1f));
             RectTransform str = scoreText.GetComponent<RectTransform>();
             str.anchorMin = new Vector2(1, 1);
             str.anchorMax = new Vector2(1, 1);
             str.pivot = new Vector2(1, 1);
-            str.anchoredPosition = new Vector2(-40, -40);
-            str.sizeDelta = new Vector2(300, 45);
+            str.anchoredPosition = new Vector2(-220, -35);
+            str.sizeDelta = new Vector2(250, 45);
             scoreText.alignment = TextAlignmentOptions.Right;
 
             // --- Center Banner Notification ---
-            TextMeshProUGUI notifText = CreateTMPText("WaveNotification", hudRoot, "WAVE 1 BERSIAP!", 48, FontStyles.Bold, new Color(0f, 1f, 0.7f));
+            TextMeshProUGUI notifText = CreateTMPText("WaveNotification", hudRoot, "WAVE 1 BERSIAP!", 44, FontStyles.Bold, new Color(0f, 1f, 0.7f));
             RectTransform ntr = notifText.GetComponent<RectTransform>();
             ntr.anchorMin = new Vector2(0.5f, 0.5f);
             ntr.anchorMax = new Vector2(0.5f, 0.5f);
@@ -465,32 +465,33 @@ namespace MultiverseArcade.EditorTools
             GameObject goPanel = CreateUIObject("GameOverPanel", hudRoot);
             StretchFull(goPanel.GetComponent<RectTransform>());
             Image goBg = goPanel.AddComponent<Image>();
-            goBg.color = new Color(0.04f, 0.05f, 0.08f, 0.92f);
+            goBg.color = new Color(0.04f, 0.05f, 0.08f, 0.94f);
 
             GameObject goBox = CreateUIObject("GameOverBox", goPanel.transform);
             RectTransform goBoxRect = goBox.GetComponent<RectTransform>();
             goBoxRect.anchorMin = new Vector2(0.5f, 0.5f);
             goBoxRect.anchorMax = new Vector2(0.5f, 0.5f);
             goBoxRect.pivot = new Vector2(0.5f, 0.5f);
-            goBoxRect.sizeDelta = new Vector2(600, 420);
+            goBoxRect.sizeDelta = new Vector2(620, 480);
 
-            TextMeshProUGUI goTitle = CreateTMPText("GameOverTitle", goBox.transform, "HERO GUGUR!", 54, FontStyles.Bold, new Color(0.95f, 0.2f, 0.25f));
+            TextMeshProUGUI goTitle = CreateTMPText("GameOverTitle", goBox.transform, "HERO GUGUR!", 52, FontStyles.Bold, new Color(0.95f, 0.2f, 0.25f));
             RectTransform gotr = goTitle.GetComponent<RectTransform>();
-            gotr.anchoredPosition = new Vector2(0, 130);
-            gotr.sizeDelta = new Vector2(550, 70);
+            gotr.anchoredPosition = new Vector2(0, 160);
+            gotr.sizeDelta = new Vector2(550, 60);
 
             TextMeshProUGUI finalScore = CreateTMPText("FinalScoreText", goBox.transform, "FINAL SCORE: 0", 26, FontStyles.Normal, Color.white);
             RectTransform fstr = finalScore.GetComponent<RectTransform>();
-            fstr.anchoredPosition = new Vector2(0, 60);
+            fstr.anchoredPosition = new Vector2(0, 95);
             fstr.sizeDelta = new Vector2(500, 40);
 
             TextMeshProUGUI highScore = CreateTMPText("HighScoreText", goBox.transform, "HIGH SCORE: 0", 22, FontStyles.Bold, new Color(1f, 0.85f, 0.3f));
             RectTransform hstr = highScore.GetComponent<RectTransform>();
-            hstr.anchoredPosition = new Vector2(0, 15);
+            hstr.anchoredPosition = new Vector2(0, 50);
             hstr.sizeDelta = new Vector2(500, 40);
 
-            Button btnRetry = CreateButton("BtnRetry", goBox.transform, "COBA LAGI (RETRY)", new Vector2(0, -60), new Vector2(300, 54), new Color(0f, 0.75f, 0.9f), Color.white, 20);
-            Button btnSelection = CreateButton("BtnBackSelect", goBox.transform, "PILIH GAME LAIN", new Vector2(0, -130), new Vector2(300, 50), new Color(0.2f, 0.25f, 0.35f), Color.white, 18);
+            Button btnRetry = CreateButton("BtnRetry", goBox.transform, "COBA LAGI (RETRY)", new Vector2(0, -25), new Vector2(320, 52), new Color(0f, 0.75f, 0.9f), Color.white, 20);
+            Button btnSelection = CreateButton("BtnBackSelect", goBox.transform, "PILIH GAME LAIN (SELECTION)", new Vector2(0, -90), new Vector2(320, 50), new Color(0.2f, 0.25f, 0.35f), Color.white, 18);
+            Button btnMainMenu = CreateButton("BtnMainMenu", goBox.transform, "MENU UTAMA (MAIN MENU)", new Vector2(0, -155), new Vector2(320, 50), new Color(0.75f, 0.2f, 0.25f), Color.white, 18);
 
             goPanel.SetActive(false);
 
@@ -507,6 +508,7 @@ namespace MultiverseArcade.EditorTools
             SetPrivateField(arenaMgr, "highScoreText", highScore);
             SetPrivateField(arenaMgr, "btnRetry", btnRetry);
             SetPrivateField(arenaMgr, "btnBackSelection", btnSelection);
+            SetPrivateField(arenaMgr, "btnMainMenu", btnMainMenu);
 
             // 6. GameOverlayUI (Universal Pause / Menu)
             CreateOverlayCanvas();
@@ -584,7 +586,7 @@ namespace MultiverseArcade.EditorTools
             Transform root = canvasGo.transform;
 
             // Pause Button (Top Right)
-            Button btnPause = CreateButton("BtnPause", root, "PAUSE ❚❚", new Vector2(-40, -40), new Vector2(140, 44), new Color(0.18f, 0.22f, 0.32f, 0.9f), Color.white, 16);
+            Button btnPause = CreateButton("BtnPause", root, "PAUSE [ESC]", new Vector2(-35, -35), new Vector2(160, 46), new Color(0.18f, 0.22f, 0.32f, 0.95f), Color.white, 16);
             RectTransform prt = btnPause.GetComponent<RectTransform>();
             prt.anchorMin = new Vector2(1, 1);
             prt.anchorMax = new Vector2(1, 1);

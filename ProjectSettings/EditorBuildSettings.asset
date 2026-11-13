@@ -6,6 +6,24 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
+    path: Assets/_Project/Scenes/MainMenu.unity
+    guid: ba71411a56f636f49ba7f75695028e31
+  - enabled: 1
+    path: Assets/_Project/Scenes/GameSelection.unity
+    guid: be205b4df328ba54abb082b51e44a5a8
+  - enabled: 1
+    path: Assets/Games/Syafiq/Scenes/Game_Syafiq.unity
+    guid: d89c47ab07e6b4f4485bbdd7cba81576
+  - enabled: 1
+    path: Assets/Games/Jaya/Scenes/Game_Jaya.unity
+    guid: 64016a7be142d84439069bc5b2e21bd3
+  - enabled: 1
+    path: Assets/Games/Prima/Scenes/Game_Prima.unity
+    guid: 2e0886ee6af3ffb4db729a98640ab42c
+  - enabled: 1
+    path: Assets/Games/Brili/Scenes/Game_Brili.unity
+    guid: 2029880f11ee6cd49892d3d508d30b5c
+  - enabled: 1
+    path: Assets/Games/Risa/Scenes/Game_Risa.unity
+    guid: 9eaa41f77393e5f4ba69e819e4b49b10
   m_configObjects: {}

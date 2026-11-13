@@ -7,7 +7,8 @@ namespace MultiverseArcade.Games.Syafiq
 {
     /// <summary>
     /// GameManager untuk Arena Clash 3D (Game Syafiq).
-    /// Mengatur skor, wave musuh, nyawa player, dan kondisi Game Over / Menang.
+    /// Mengatur skor, wave musuh, nyawa player, dan kondisi Game Over / Menang,
+    /// serta tombol navigasi kembali ke Game Selection atau Main Menu.
     /// </summary>
     public class ArenaGameManager : MonoBehaviour
     {
@@ -26,6 +27,7 @@ namespace MultiverseArcade.Games.Syafiq
         [SerializeField] private TextMeshProUGUI highScoreText;
         [SerializeField] private Button btnRetry;
         [SerializeField] private Button btnBackSelection;
+        [SerializeField] private Button btnMainMenu;
 
         [Header("Audio (Optional)")]
         [SerializeField] private AudioSource sfxAudioSource;
@@ -63,6 +65,9 @@ namespace MultiverseArcade.Games.Syafiq
             if (btnBackSelection != null)
                 btnBackSelection.onClick.AddListener(ReturnToGameSelection);
 
+            if (btnMainMenu != null)
+                btnMainMenu.onClick.AddListener(ReturnToMainMenu);
+
             UpdateScoreUI();
             UpdateWaveUI();
 
@@ -76,6 +81,7 @@ namespace MultiverseArcade.Games.Syafiq
         {
             if (btnRetry != null) btnRetry.onClick.RemoveListener(RestartGame);
             if (btnBackSelection != null) btnBackSelection.onClick.RemoveListener(ReturnToGameSelection);
+            if (btnMainMenu != null) btnMainMenu.onClick.RemoveListener(ReturnToMainMenu);
         }
 
         public void UpdatePlayerHealth(int currentHealth, int maxHealth)
@@ -115,7 +121,7 @@ namespace MultiverseArcade.Games.Syafiq
         {
             currentWave = wave;
             UpdateWaveUI();
-            ShowWaveNotification($"WAVE {currentWave}");
+            ShowWaveNotification($"WAVE {currentWave} DIMULAI!");
         }
 
         public void ShowWaveNotification(string message, float duration = 2.5f)
@@ -205,6 +211,19 @@ namespace MultiverseArcade.Games.Syafiq
             else
             {
                 UnityEngine.SceneManagement.SceneManager.LoadScene(SceneNames.GameSelection);
+            }
+        }
+
+        public void ReturnToMainMenu()
+        {
+            Time.timeScale = 1.0f;
+            if (SceneLoader.Instance != null)
+            {
+                SceneLoader.Instance.GoToMainMenu();
+            }
+            else
+            {
+                UnityEngine.SceneManagement.SceneManager.LoadScene(SceneNames.MainMenu);
             }
         }
     }
