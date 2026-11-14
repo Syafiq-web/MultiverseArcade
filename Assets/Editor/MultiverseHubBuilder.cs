@@ -812,6 +812,7 @@ namespace MultiverseArcade.EditorTools
             GameObject esGo = new GameObject("EventSystem");
             esGo.AddComponent<EventSystem>();
             esGo.AddComponent<StandaloneInputModule>();
+            esGo.AddComponent<SingleEventSystem>();
         }
 
         private static Material CreateURPMaterial(string name, Color color, float smoothness = 0.5f)

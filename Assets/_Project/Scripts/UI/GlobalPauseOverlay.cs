@@ -24,6 +24,12 @@ namespace MultiverseArcade.UI
             if (_mainMenuButton != null) _mainMenuButton.onClick.AddListener(OnMainMenuClicked);
         }
 
+        private void OnEnable()
+        {
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+        }
+
         public void BindButtons(Button resume, Button restart, Button switchGame, Button mainMenu)
         {
             _resumeButton = resume;

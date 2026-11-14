@@ -5,6 +5,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using UnityEngine.AI;
 using Unity.AI.Navigation;
 using UnityEngine.Rendering.Universal;
@@ -16,14 +17,17 @@ using MultiverseArcade.UI;
 namespace MultiverseArcade.EditorTools
 {
     /// <summary>
-    /// Builder Otomatis untuk Arena Clash 3D (Fase 1 sampai 5):
+    /// Builder Otomatis untuk Arena Clash 3D (Fase 1 sampai 5) & Validasi Bug Fix:
     /// - Arena Blockout 30x30 simetris, NavMeshSurface baking
     /// - Kamera top-down 55 derajat dengan smooth follow & mouse look-ahead
     /// - Player controller WASD (diagonal dinormalisasi) + mouse aiming Y-axis
     /// - Projectile pooling (pool 60) + PlayerCombat (interval 0.4s)
     /// - Bot AI 3v3 (FSM: Idle, Seek, Chase, Attack, Strafe, Retreat, Dead) + Utility target scoring
     /// - Format 3v3 (1 Player + 2 Blue Bot vs 3 Red Bot), Countdown 3-2-1, Match Timer 180s, Target 10 eliminasi
-    /// - HUD, World Health Bars, Kill Feed, Floating Damage Number, Result Panel, Restart & Hub Integration
+    /// - BUG FIX 1: Tepat satu EventSystem aktif (SingleEventSystem), PauseCanvas terisolasi (Sorting Order 500),
+    ///   GraphicRaycaster aktif, non-interactive Raycast Target OFF, proteksi panel ganda, kursor visible saat pause.
+    /// - BUG FIX 2: World-space health bar 6 karakter (Player, 2 Blue Bot, 3 Red Bot), billboard camera,
+    ///   Raycast Target OFF, warna tim biru/merah, sinkron HP saat respawn dan rematch tanpa duplikat.
     /// </summary>
     public static class ArenaClashBuilder
     {
@@ -80,6 +84,9 @@ namespace MultiverseArcade.EditorTools
             // Directional Light
             CreateDirectionalLight();
 
+            // BUG FIX 1: Tepat satu EventSystem dengan StandaloneInputModule dan SingleEventSystem
+            CreateEventSystem();
+
             // Arena Geometry (30x30 simetris) & NavMesh
             GameObject arenaRoot = BuildArenaBlockout();
 
@@ -133,7 +140,7 @@ namespace MultiverseArcade.EditorTools
             bgmSource.playOnAwake = true;
             if (bgmClip != null) bgmSource.Play();
 
-            // UI Canvas
+            // UI Canvas (ArenaGameCanvas + Isolated PauseCanvas dengan sorting order 500)
             BuildArenaUI(dmgNumPrefab);
 
             // Save Scene
@@ -143,21 +150,28 @@ namespace MultiverseArcade.EditorTools
             if (interactive)
             {
                 EditorUtility.DisplayDialog("Arena Clash 3D",
-                    "MVP Arena Clash 3D (Fase 1 sampai 5) berhasil dibangun!\n\n" +
-                    "- Arena 30x30 simetris dengan NavMesh baked\n" +
-                    "- Player WASD + Mouse Aiming Y-axis\n" +
-                    "- 3v3 Team Deathmatch (1 Player + 2 Blue Bot vs 3 Red Bot)\n" +
-                    "- Projectile Pool 60 & Friendly Fire Protection\n" +
-                    "- Bot AI FSM + Utility Target Scoring\n" +
-                    "- HUD, Health Bars, Countdown 3-2-1, Timer 180s, & Result Panel\n" +
-                    "- Tekan PLAY untuk menguji langsung!", "Siap Bertanding!");
+                    "MVP Arena Clash 3D (Fase 1 sampai 5) berhasil dibangun & bug fix diterapkan!\n\n" +
+                    "- Tepat 1 EventSystem aktif dengan SingleEventSystem\n" +
+                    "- Dedicated PauseCanvas (Sorting Order 500) dengan GraphicRaycaster\n" +
+                    "- Raycast Target non-aktif pada background HUD & Health Bars\n" +
+                    "- World Health Bars pada 6 karakter (Player, 2 Blue Bot, 3 Red Bot) dengan warna tim dan billboard", "OK");
             }
         }
 
-        #region Setup Assets & Directories
+        #region Setup Directories & Assets
         private static void EnsureDirectories()
         {
-            string[] dirs = { DATA_DIR, PREFAB_DIR, MAT_DIR, "Assets/Games/Syafiq/Scenes" };
+            string[] dirs = new string[]
+            {
+                "Assets/_Project/Audio",
+                "Assets/Games/Syafiq/Scenes",
+                "Assets/Games/Syafiq/Scripts",
+                "Assets/Games/Syafiq/Prefabs",
+                "Assets/Games/Syafiq/Materials",
+                "Assets/Games/Syafiq/Audio",
+                "Assets/Games/Syafiq/Data"
+            };
+
             foreach (var d in dirs)
             {
                 if (!Directory.Exists(d)) Directory.CreateDirectory(d);
@@ -167,23 +181,57 @@ namespace MultiverseArcade.EditorTools
 
         private static void SetupPhysicsLayers()
         {
+            SerializedObject tagManager = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
+            SerializedProperty layersProp = tagManager.FindProperty("layers");
+
+            SetLayer(layersProp, 10, "Syafiq_Player");
+            SetLayer(layersProp, 11, "Syafiq_Enemy");
+            SetLayer(layersProp, 12, "Syafiq_Projectile");
+            SetLayer(layersProp, 13, "Syafiq_Wall");
+            SetLayer(layersProp, 14, "Syafiq_Ground");
+
+            tagManager.ApplyModifiedProperties();
+
+            // Collision Matrix
+            int playerLayer = LayerMask.NameToLayer("Syafiq_Player");
+            int enemyLayer = LayerMask.NameToLayer("Syafiq_Enemy");
             int projLayer = LayerMask.NameToLayer("Syafiq_Projectile");
+            int wallLayer = LayerMask.NameToLayer("Syafiq_Wall");
+            int groundLayer = LayerMask.NameToLayer("Syafiq_Ground");
+
             if (projLayer >= 0)
             {
+                // Projectile menabrak Player, Enemy, Wall
+                if (playerLayer >= 0) Physics.IgnoreLayerCollision(projLayer, playerLayer, false);
+                if (enemyLayer >= 0) Physics.IgnoreLayerCollision(projLayer, enemyLayer, false);
+                if (wallLayer >= 0) Physics.IgnoreLayerCollision(projLayer, wallLayer, false);
+                if (groundLayer >= 0) Physics.IgnoreLayerCollision(projLayer, groundLayer, true);
+
+                // Projectile-Projectile nonaktif (AC-06)
                 Physics.IgnoreLayerCollision(projLayer, projLayer, true);
+            }
+            Debug.Log("[ArenaClashBuilder] Physics layers & Collision Matrix berhasil dikonfigurasi.");
+        }
+
+        private static void SetLayer(SerializedProperty layersProp, int index, string name)
+        {
+            SerializedProperty sp = layersProp.GetArrayElementAtIndex(index);
+            if (sp != null && sp.stringValue != name)
+            {
+                sp.stringValue = name;
             }
         }
 
         private static SO_Projectile CreateOrLoadProjectileData()
         {
-            string path = $"{DATA_DIR}/SO_Projectile_Blaze.asset";
+            string path = $"{DATA_DIR}/Projectile_Blaster.asset";
             SO_Projectile data = AssetDatabase.LoadAssetAtPath<SO_Projectile>(path);
             if (data == null)
             {
                 data = ScriptableObject.CreateInstance<SO_Projectile>();
+                data.speed = 18f;
                 data.damage = 20;
-                data.speed = 14f;
-                data.lifetime = 0.8f;
+                data.lifetime = 2.5f;
                 data.radius = 0.25f;
                 AssetDatabase.CreateAsset(data, path);
             }
@@ -192,73 +240,79 @@ namespace MultiverseArcade.EditorTools
 
         private static SO_Hero CreateOrLoadHeroData(SO_Projectile projData)
         {
-            string path = $"{DATA_DIR}/SO_Hero_Blaze.asset";
-            SO_Hero hero = AssetDatabase.LoadAssetAtPath<SO_Hero>(path);
-            if (hero == null)
+            string path = $"{DATA_DIR}/Hero_Blaze.asset";
+            SO_Hero data = AssetDatabase.LoadAssetAtPath<SO_Hero>(path);
+            if (data == null)
             {
-                hero = ScriptableObject.CreateInstance<SO_Hero>();
-                hero.heroName = "Blaze";
-                hero.role = "Gunner Seimbang";
-                hero.maxHealth = 100;
-                hero.moveSpeed = 5.0f;
-                hero.fireInterval = 0.4f;
-                hero.projectileData = projData;
-                AssetDatabase.CreateAsset(hero, path);
+                data = ScriptableObject.CreateInstance<SO_Hero>();
+                data.heroName = "Blaze";
+                data.maxHealth = 100;
+                data.moveSpeed = 5.0f;
+                data.fireInterval = 0.4f;
+                data.projectileData = projData;
+                AssetDatabase.CreateAsset(data, path);
             }
-            return hero;
+            return data;
         }
 
         private static SO_BotDifficulty CreateOrLoadBotDifficulty()
         {
-            string path = $"{DATA_DIR}/SO_BotDifficulty_Normal.asset";
-            SO_BotDifficulty diff = AssetDatabase.LoadAssetAtPath<SO_BotDifficulty>(path);
-            if (diff == null)
+            string path = $"{DATA_DIR}/BotDifficulty_Medium.asset";
+            SO_BotDifficulty data = AssetDatabase.LoadAssetAtPath<SO_BotDifficulty>(path);
+            if (data == null)
             {
-                diff = ScriptableObject.CreateInstance<SO_BotDifficulty>();
-                diff.difficultyName = "Normal";
-                diff.reactionTime = 0.5f;
-                diff.aimErrorDegrees = 8f;
-                diff.fireInterval = 1.0f;
-                diff.moveSpeed = 4.2f;
-                diff.retreatHealthRatio = 0.25f;
-                AssetDatabase.CreateAsset(diff, path);
+                data = ScriptableObject.CreateInstance<SO_BotDifficulty>();
+                data.difficultyName = "Medium";
+                data.moveSpeed = 4.2f;
+                data.fireInterval = 0.8f;
+                data.aimErrorDegrees = 6.0f;
+                data.reactionTime = 0.25f;
+                data.retreatHealthRatio = 0.25f;
+                AssetDatabase.CreateAsset(data, path);
             }
-            return diff;
+            return data;
         }
 
         private static SO_MatchSettings CreateOrLoadMatchSettings()
         {
-            string path = $"{DATA_DIR}/SO_MatchSettings_Standard.asset";
-            SO_MatchSettings settings = AssetDatabase.LoadAssetAtPath<SO_MatchSettings>(path);
-            if (settings == null)
+            string path = $"{DATA_DIR}/MatchSettings_Standard.asset";
+            SO_MatchSettings data = AssetDatabase.LoadAssetAtPath<SO_MatchSettings>(path);
+            if (data == null)
             {
-                settings = ScriptableObject.CreateInstance<SO_MatchSettings>();
-                settings.targetEliminations = 10;
-                settings.matchDuration = 180f;
-                settings.countdownDuration = 3f;
-                settings.respawnTime = 4f;
-                AssetDatabase.CreateAsset(settings, path);
+                data = ScriptableObject.CreateInstance<SO_MatchSettings>();
+                data.targetEliminations = 10;
+                data.matchDuration = 180f;
+                data.countdownDuration = 3f;
+                data.respawnTime = 4f;
+                AssetDatabase.CreateAsset(data, path);
             }
-            return settings;
+            return data;
         }
+        #endregion
 
-        private static GameObject CreateProjectilePrefab(SO_Projectile data)
+        #region Prefabs Creation
+        private static GameObject CreateProjectilePrefab(SO_Projectile projData)
         {
-            string path = $"{PREFAB_DIR}/PF_Projectile.prefab";
+            string path = $"{PREFAB_DIR}/PF_BlasterProjectile.prefab";
             GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (existing != null) return existing;
 
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            go.name = "PF_Projectile";
-            go.transform.localScale = Vector3.one * 0.4f;
+            go.name = "PF_BlasterProjectile";
+            go.transform.localScale = Vector3.one * 0.45f;
 
             int projLayer = LayerMask.NameToLayer("Syafiq_Projectile");
             if (projLayer >= 0) go.layer = projLayer;
 
-            Collider col = go.GetComponent<Collider>();
-            if (col != null) col.isTrigger = true;
+            SphereCollider col = go.GetComponent<SphereCollider>();
+            col.isTrigger = true;
+            col.radius = 0.5f;
 
-            Material mat = CreateURPMaterial("Mat_Blaze_Laser", new Color(0f, 1f, 0.95f), 0.9f);
+            Rigidbody rb = go.AddComponent<Rigidbody>();
+            rb.isKinematic = true;
+            rb.useGravity = false;
+
+            Material mat = CreateURPMaterial("Mat_Projectile_Laser", new Color(0f, 1f, 0.95f), 0.9f);
             go.GetComponent<Renderer>().sharedMaterial = mat;
 
             go.AddComponent<Projectile>();
@@ -284,7 +338,7 @@ namespace MultiverseArcade.EditorTools
             tmp.fontStyle = FontStyles.Bold;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = Color.yellow;
-            tmp.raycastTarget = false;
+            tmp.raycastTarget = false; // BUG FIX: Raycast Target OFF
 
             go.AddComponent<DamageNumber>();
 
@@ -296,8 +350,12 @@ namespace MultiverseArcade.EditorTools
         private static GameObject CreateHealthBarPrefab()
         {
             string path = $"{PREFAB_DIR}/PF_HealthBarWorld.prefab";
-            GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (existing != null) return existing;
+
+            // Rebuild prefab untuk memastikan semua perbaikan raycast target dan referensi terpasang
+            if (File.Exists(path))
+            {
+                AssetDatabase.DeleteAsset(path);
+            }
 
             GameObject go = new GameObject("PF_HealthBarWorld");
             RectTransform rt = go.AddComponent<RectTransform>();
@@ -305,13 +363,18 @@ namespace MultiverseArcade.EditorTools
 
             Canvas canvas = go.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.WorldSpace;
-            go.AddComponent<Slider>();
+            // Tidak menambahkan GraphicRaycaster pada world space health bar!
+
+            Slider slider = go.AddComponent<Slider>();
+            slider.interactable = false;
+            slider.transition = Selectable.Transition.None;
 
             // Background
             GameObject bg = new GameObject("Background");
             bg.transform.SetParent(go.transform, false);
             Image bgImg = bg.AddComponent<Image>();
             bgImg.color = new Color(0.1f, 0.1f, 0.15f, 0.85f);
+            bgImg.raycastTarget = false; // BUG FIX 2: Non-aktifkan raycast target
             RectTransform bgRt = bg.GetComponent<RectTransform>();
             bgRt.anchorMin = Vector2.zero;
             bgRt.anchorMax = Vector2.one;
@@ -329,13 +392,13 @@ namespace MultiverseArcade.EditorTools
             GameObject fill = new GameObject("Fill");
             fill.transform.SetParent(fillArea.transform, false);
             Image fillImg = fill.AddComponent<Image>();
-            fillImg.color = Color.green;
+            fillImg.color = new Color(0f, 0.85f, 1f);
+            fillImg.raycastTarget = false; // BUG FIX 2: Non-aktifkan raycast target
             RectTransform fillRt = fill.GetComponent<RectTransform>();
             fillRt.anchorMin = Vector2.zero;
             fillRt.anchorMax = Vector2.one;
             fillRt.sizeDelta = Vector2.zero;
 
-            Slider slider = go.GetComponent<Slider>();
             slider.fillRect = fillRt;
             slider.minValue = 0;
             slider.maxValue = 100;
@@ -344,8 +407,10 @@ namespace MultiverseArcade.EditorTools
             HealthBarWorld hbw = go.AddComponent<HealthBarWorld>();
 
             // Setup private fields via reflection
+            SetPrivateField(hbw, "_canvas", canvas);
             SetPrivateField(hbw, "_slider", slider);
             SetPrivateField(hbw, "_fillImage", fillImg);
+            SetPrivateField(hbw, "_backgroundImage", bgImg);
 
             GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
             Object.DestroyImmediate(go);
@@ -374,7 +439,7 @@ namespace MultiverseArcade.EditorTools
             Material floorMat = CreateURPMaterial("Mat_Arena_Floor", new Color(0.08f, 0.10f, 0.15f), 0.3f);
             floor.GetComponent<Renderer>().sharedMaterial = floorMat;
 
-            // 2. Thick Boundary Walls (>= 1 unit thick, GDD Fase 1: 2 unit tebal, tinggi 2.5)
+            // 2. Boundary Walls
             Material wallMat = CreateURPMaterial("Mat_Arena_Wall", new Color(0.15f, 0.20f, 0.28f), 0.5f);
 
             CreateWall(arenaRoot.transform, "Wall_North", new Vector3(0, 1.25f, 15.5f), new Vector3(32, 2.5f, 2), wallMat, wallLayer);
@@ -504,8 +569,8 @@ namespace MultiverseArcade.EditorTools
             lr.sharedMaterial = laserMat;
             ai.Setup(pc, firePt.transform);
 
-            // World Health Bar
-            AttachWorldHealthBar(player, health, new Color(0f, 0.9f, 1f), healthBarPrefab);
+            // World Health Bar (Tim Blue - Biru Cyan)
+            AttachWorldHealthBar(player, health, new Color(0f, 0.85f, 1f), healthBarPrefab);
 
             return player;
         }
@@ -553,7 +618,15 @@ namespace MultiverseArcade.EditorTools
 
         private static void AttachWorldHealthBar(GameObject owner, Health health, Color teamColor, GameObject prefab)
         {
-            if (prefab == null) return;
+            if (prefab == null || owner == null) return;
+
+            // BUG FIX 2: Hapus health bar lama jika sudah ada untuk mencegah duplikasi
+            HealthBarWorld[] existingBars = owner.GetComponentsInChildren<HealthBarWorld>(true);
+            foreach (var b in existingBars)
+            {
+                if (b != null) Object.DestroyImmediate(b.gameObject);
+            }
+
             GameObject hbGo = (GameObject)PrefabUtility.InstantiatePrefab(prefab, owner.transform);
             hbGo.name = "HealthBarWorld";
             HealthBarWorld hbw = hbGo.GetComponent<HealthBarWorld>();
@@ -564,7 +637,7 @@ namespace MultiverseArcade.EditorTools
         }
         #endregion
 
-        #region Camera & Lights
+        #region Camera, Lights & EventSystem
         private static GameObject CreateTopDownCamera(Transform target)
         {
             GameObject camGo = new GameObject("MainCamera");
@@ -592,11 +665,21 @@ namespace MultiverseArcade.EditorTools
             l.intensity = 1.15f;
             lightGo.transform.rotation = Quaternion.Euler(55, -35, 0);
         }
+
+        private static void CreateEventSystem()
+        {
+            GameObject esGo = new GameObject("EventSystem");
+            esGo.AddComponent<EventSystem>();
+            esGo.AddComponent<StandaloneInputModule>();
+            esGo.AddComponent<SingleEventSystem>();
+            Debug.Log("[ArenaClashBuilder] EventSystem dengan StandaloneInputModule & SingleEventSystem berhasil dibuat.");
+        }
         #endregion
 
-        #region UI Canvas
+        #region UI Canvas & Overlays
         private static void BuildArenaUI(GameObject dmgNumPrefab)
         {
+            // 1. Arena HUD Canvas (Sorting Order 100)
             GameObject canvasGo = new GameObject("ArenaGameCanvas");
             Canvas canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -609,7 +692,7 @@ namespace MultiverseArcade.EditorTools
 
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            // 1. Top Score & Timer Banner
+            // Top Score & Timer Banner
             GameObject topBanner = new GameObject("TopScoreBanner");
             topBanner.transform.SetParent(canvasGo.transform, false);
             RectTransform bannerRt = topBanner.AddComponent<RectTransform>();
@@ -618,6 +701,7 @@ namespace MultiverseArcade.EditorTools
 
             Image bannerBg = topBanner.AddComponent<Image>();
             bannerBg.color = new Color(0.06f, 0.08f, 0.14f, 0.9f);
+            bannerBg.raycastTarget = false; // BUG FIX: Matikan raycast target pada background non-interaktif
 
             TextMeshProUGUI blueScoreTxt = CreateTextTMP(topBanner.transform, "BlueScore", "0", 38,
                 new Vector2(-160, 0), new Vector2(100, 60), new Color(0f, 0.9f, 1f), FontStyles.Bold, TextAlignmentOptions.Center);
@@ -628,7 +712,7 @@ namespace MultiverseArcade.EditorTools
             TextMeshProUGUI redScoreTxt = CreateTextTMP(topBanner.transform, "RedScore", "0", 38,
                 new Vector2(160, 0), new Vector2(100, 60), new Color(1f, 0.3f, 0.3f), FontStyles.Bold, TextAlignmentOptions.Center);
 
-            // 2. Countdown Banner (Center Screen)
+            // Countdown Banner (Center Screen)
             GameObject countdownGo = new GameObject("CountdownBanner");
             countdownGo.transform.SetParent(canvasGo.transform, false);
             RectTransform cdRt = countdownGo.AddComponent<RectTransform>();
@@ -638,7 +722,7 @@ namespace MultiverseArcade.EditorTools
             TextMeshProUGUI countdownTxt = CreateTextTMP(countdownGo.transform, "CountdownText", "3", 84,
                 Vector2.zero, new Vector2(500, 150), new Color(0f, 1f, 0.95f), FontStyles.Bold, TextAlignmentOptions.Center);
 
-            // 3. Player HUD (Bottom Left)
+            // Player HUD (Bottom Left)
             GameObject playerHudGo = new GameObject("PlayerHUD");
             playerHudGo.transform.SetParent(canvasGo.transform, false);
             RectTransform pHudRt = playerHudGo.AddComponent<RectTransform>();
@@ -647,6 +731,7 @@ namespace MultiverseArcade.EditorTools
 
             Image pHudBg = playerHudGo.AddComponent<Image>();
             pHudBg.color = new Color(0.06f, 0.08f, 0.14f, 0.85f);
+            pHudBg.raycastTarget = false; // BUG FIX: Matikan raycast target pada background non-interaktif
 
             CreateTextTMP(playerHudGo.transform, "PlayerLabel", "BLAZE (YOU)", 16,
                 new Vector2(0, 24), new Vector2(320, 30), new Color(0f, 1f, 0.9f), FontStyles.Bold, TextAlignmentOptions.Left);
@@ -655,7 +740,7 @@ namespace MultiverseArcade.EditorTools
             TextMeshProUGUI hpTxt = CreateTextTMP(playerHudGo.transform, "HPText", "100 / 100 HP", 14,
                 new Vector2(0, -12), new Vector2(320, 22), Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
 
-            // 4. Kill Feed Container (Top Right)
+            // Kill Feed Container (Top Right)
             GameObject killFeedGo = new GameObject("KillFeedContainer");
             killFeedGo.transform.SetParent(canvasGo.transform, false);
             RectTransform kfRt = killFeedGo.AddComponent<RectTransform>();
@@ -666,19 +751,23 @@ namespace MultiverseArcade.EditorTools
             KillFeedUI kfUI = canvasGo.AddComponent<KillFeedUI>();
             kfUI.BindContainer(killFeedGo.transform, kfItemPrefab);
 
-            // 5. Damage Number Container
+            // Damage Number Container
             GameObject dmgNumContainer = new GameObject("DamageNumberContainer");
             dmgNumContainer.transform.SetParent(canvasGo.transform, false);
 
-            // 6. ArenaHUD Component
+            // ArenaHUD Component
             ArenaHUD hud = canvasGo.AddComponent<ArenaHUD>();
             hud.BindControls(blueScoreTxt, redScoreTxt, timerTxt, countdownGo, countdownTxt, hpSlider, hpTxt, dmgNumPrefab, dmgNumContainer.transform);
 
-            // 7. Result Panel
+            // Result Panel (pada ArenaGameCanvas)
             BuildResultPanel(canvasGo.transform);
 
-            // 8. Global Pause Overlay helper
-            BuildGameOverlayCanvas(canvasGo.transform);
+            // Tombol Pause di pojok kanan atas ArenaGameCanvas
+            Button pauseBtn = CreateCyberButton(canvasGo.transform, "Btn_Pause", "PAUSE (Esc)",
+                new Vector2(760, 460), new Vector2(170, 42), new Color(0.2f, 0.35f, 0.5f, 0.9f));
+
+            // BUG FIX 1: Dedicated PauseCanvas dengan Sorting Order tertinggi (500) dan GraphicRaycaster mandiri
+            BuildDedicatedPauseCanvas(pauseBtn);
         }
 
         private static GameObject CreateKillFeedItemPrefab(Transform parent)
@@ -690,6 +779,7 @@ namespace MultiverseArcade.EditorTools
 
             Image bg = item.AddComponent<Image>();
             bg.color = new Color(0.05f, 0.08f, 0.12f, 0.8f);
+            bg.raycastTarget = false; // BUG FIX: Raycast Target OFF
 
             TextMeshProUGUI tmp = CreateTextTMP(item.transform, "Text", "Blaze  ➜  Red Bot", 14,
                 Vector2.zero, new Vector2(300, 30), Color.white, FontStyles.Bold, TextAlignmentOptions.Right);
@@ -708,6 +798,7 @@ namespace MultiverseArcade.EditorTools
 
             Image bg = panel.AddComponent<Image>();
             bg.color = new Color(0.05f, 0.08f, 0.14f, 0.98f);
+            bg.raycastTarget = false; // BUG FIX: Raycast Target OFF pada background
 
             TextMeshProUGUI titleTxt = CreateTextTMP(panel.transform, "Title", "VICTORY!", 58,
                 new Vector2(0, 160), new Vector2(600, 80), new Color(0f, 1f, 0.95f), FontStyles.Bold, TextAlignmentOptions.Center);
@@ -728,22 +819,33 @@ namespace MultiverseArcade.EditorTools
             resultUI.BindControls(titleTxt, scoreTxt, statsTxt, rematchBtn, switchBtn);
         }
 
-        private static void BuildGameOverlayCanvas(Transform parent)
+        private static void BuildDedicatedPauseCanvas(Button pauseBtn)
         {
-            // Pause button on top right
-            Button pauseBtn = CreateCyberButton(parent, "Btn_Pause", "PAUSE (Esc)",
-                new Vector2(760, 460), new Vector2(170, 42), new Color(0.2f, 0.35f, 0.5f, 0.9f));
+            // BUG FIX 1: Dedicated PauseCanvas ber-Sorting Order 500 (paling tinggi) dan GraphicRaycaster
+            GameObject pauseCanvasGo = new GameObject("PauseCanvas");
+            Canvas canvas = pauseCanvasGo.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 500;
+
+            CanvasScaler scaler = pauseCanvasGo.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            pauseCanvasGo.AddComponent<GraphicRaycaster>();
 
             // Pause Overlay Panel
             GameObject pausePanel = new GameObject("PausePanel");
-            pausePanel.transform.SetParent(parent, false);
+            pausePanel.transform.SetParent(pauseCanvasGo.transform, false);
             RectTransform rt = pausePanel.AddComponent<RectTransform>();
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
             rt.sizeDelta = Vector2.zero;
 
+            // Background peredam (menangkap klik di luar tombol)
             Image dimImg = pausePanel.AddComponent<Image>();
             dimImg.color = new Color(0.04f, 0.06f, 0.12f, 0.94f);
+            dimImg.raycastTarget = true;
 
             CreateTextTMP(pausePanel.transform, "PauseTitle", "GAME PAUSED", 48,
                 new Vector2(0, 160), new Vector2(500, 70), new Color(0.95f, 0.85f, 0.2f), FontStyles.Bold, TextAlignmentOptions.Center);
@@ -753,8 +855,192 @@ namespace MultiverseArcade.EditorTools
             Button switchBtn = CreateCyberButton(pausePanel.transform, "Btn_SwitchGame", "SWITCH GAME", new Vector2(0, -75), new Vector2(300, 48), new Color(0.45f, 0.3f, 0.6f));
             Button menuBtn = CreateCyberButton(pausePanel.transform, "Btn_MainMenu", "MAIN MENU", new Vector2(0, -135), new Vector2(300, 48), new Color(0.5f, 0.2f, 0.2f));
 
-            GameOverlayUI overlayUI = parent.gameObject.AddComponent<GameOverlayUI>();
+            GameOverlayUI overlayUI = pauseCanvasGo.AddComponent<GameOverlayUI>();
             overlayUI.BindControls(pausePanel, pauseBtn, resumeBtn, restartBtn, switchBtn, menuBtn);
+        }
+        #endregion
+
+        #region Validation (EditMode & Batchmode Check)
+        [MenuItem("Multiverse/Validate Arena Clash", false, 1)]
+        [MenuItem("Tools/Multiverse Arcade/🔍 Validate Arena Clash (EditMode)", false, 1)]
+        public static bool ValidateArenaClash()
+        {
+            Debug.Log("[ArenaClashBuilder] === MEMULAI VALIDASI EDITMODE ARENA CLASH 3D ===");
+            bool allPassed = true;
+
+            // Pastikan Scene Game_Syafiq terbuka
+            var activeScene = EditorSceneManager.GetActiveScene();
+            if (activeScene.path != SCENE_SYAFIQ)
+            {
+                Debug.Log($"[ArenaClashBuilder] Membuka scene {SCENE_SYAFIQ} untuk validasi...");
+                EditorSceneManager.OpenScene(SCENE_SYAFIQ);
+            }
+
+            // 1. Validasi EventSystem
+            EventSystem[] eventSystems = Object.FindObjectsOfType<EventSystem>();
+            if (eventSystems.Length == 1)
+            {
+                Debug.Log($"[VALIDASI 1 PASSED] Tepat 1 EventSystem aktif di scene ({eventSystems[0].name}).");
+                var sim = eventSystems[0].GetComponent<StandaloneInputModule>();
+                if (sim != null)
+                {
+                    Debug.Log("[VALIDASI 1 PASSED] StandaloneInputModule terpasang sempurna.");
+                }
+                else
+                {
+                    Debug.LogError("[VALIDASI 1 FAILED] StandaloneInputModule TIDAK ditemukan pada EventSystem!");
+                    allPassed = false;
+                }
+
+                var ses = eventSystems[0].GetComponent<SingleEventSystem>();
+                if (ses != null)
+                {
+                    Debug.Log("[VALIDASI 1 PASSED] SingleEventSystem terpasang untuk mencegah duplikasi.");
+                }
+                else
+                {
+                    Debug.LogError("[VALIDASI 1 FAILED] SingleEventSystem TIDAK ditemukan pada EventSystem!");
+                    allPassed = false;
+                }
+            }
+            else
+            {
+                Debug.LogError($"[VALIDASI 1 FAILED] Ditemukan {eventSystems.Length} EventSystem di scene (harus TEPAT 1)!");
+                allPassed = false;
+            }
+
+            // 2. Validasi Canvas & GraphicRaycaster
+            Canvas[] canvases = Object.FindObjectsOfType<Canvas>();
+            Canvas pauseCanvas = null;
+            Canvas arenaGameCanvas = null;
+
+            foreach (var c in canvases)
+            {
+                if (c.name == "PauseCanvas") pauseCanvas = c;
+                if (c.name == "ArenaGameCanvas") arenaGameCanvas = c;
+            }
+
+            if (pauseCanvas != null)
+            {
+                var gr = pauseCanvas.GetComponent<GraphicRaycaster>();
+                if (gr != null && pauseCanvas.sortingOrder >= 500)
+                {
+                    Debug.Log($"[VALIDASI 2 PASSED] PauseCanvas memiliki GraphicRaycaster dan Sorting Order tertinggi ({pauseCanvas.sortingOrder}).");
+                }
+                else
+                {
+                    Debug.LogError($"[VALIDASI 2 FAILED] PauseCanvas Sorting Order ({pauseCanvas.sortingOrder}) atau GraphicRaycaster tidak valid!");
+                    allPassed = false;
+                }
+            }
+            else
+            {
+                Debug.LogError("[VALIDASI 2 FAILED] Dedicated PauseCanvas TIDAK ditemukan!");
+                allPassed = false;
+            }
+
+            if (arenaGameCanvas != null)
+            {
+                var gr = arenaGameCanvas.GetComponent<GraphicRaycaster>();
+                if (gr != null)
+                {
+                    Debug.Log("[VALIDASI 2 PASSED] ArenaGameCanvas memiliki GraphicRaycaster aktif.");
+                }
+                else
+                {
+                    Debug.LogError("[VALIDASI 2 FAILED] ArenaGameCanvas TIDAK memiliki GraphicRaycaster!");
+                    allPassed = false;
+                }
+            }
+
+            // 3. Validasi Tombol & Parent Canvas
+            Button[] buttons = Object.FindObjectsOfType<Button>(true);
+            Debug.Log($"[ArenaClashBuilder] Memeriksa {buttons.Length} tombol UI...");
+            foreach (var btn in buttons)
+            {
+                Canvas parentCanvas = btn.GetComponentInParent<Canvas>();
+                if (parentCanvas == null || parentCanvas.GetComponent<GraphicRaycaster>() == null)
+                {
+                    Debug.LogError($"[VALIDASI 3 FAILED] Tombol '{btn.name}' tidak berada di dalam Canvas dengan GraphicRaycaster!");
+                    allPassed = false;
+                }
+            }
+            if (allPassed)
+            {
+                Debug.Log("[VALIDASI 3 PASSED] Semua tombol UI berada dalam Canvas interaktif dengan GraphicRaycaster.");
+            }
+
+            // 4. Validasi Non-interactive Raycast Targets
+            Image[] images = Object.FindObjectsOfType<Image>(true);
+            foreach (var img in images)
+            {
+                if (img.gameObject.name == "TopScoreBanner" || img.gameObject.name == "PlayerHUD" ||
+                    img.gameObject.name == "KillFeedItem" || (img.transform.parent != null && img.transform.parent.name == "ResultPanel" && img.gameObject.name == "ResultPanel"))
+                {
+                    if (img.raycastTarget)
+                    {
+                        Debug.LogWarning($"[VALIDASI 4 WARNING] Elemen dekoratif non-interaktif '{img.name}' masih memiliki raycastTarget = true!");
+                    }
+                }
+            }
+
+            // 5. Validasi World-Space Health Bars pada 6 Karakter
+            Health[] allHealth = Object.FindObjectsOfType<Health>();
+            int playerBars = 0;
+            int blueBars = 0;
+            int redBars = 0;
+
+            foreach (var h in allHealth)
+            {
+                HealthBarWorld[] bars = h.GetComponentsInChildren<HealthBarWorld>(true);
+                if (bars.Length != 1)
+                {
+                    Debug.LogError($"[VALIDASI 5 FAILED] Karakter '{h.CharacterName}' memiliki {bars.Length} HealthBarWorld (harus TEPAT 1)!");
+                    allPassed = false;
+                }
+                else
+                {
+                    // Periksa tidak ada GraphicRaycaster pada world canvas
+                    var gr = bars[0].GetComponent<GraphicRaycaster>();
+                    if (gr != null)
+                    {
+                        Debug.LogError($"[VALIDASI 5 FAILED] HealthBarWorld pada '{h.CharacterName}' memiliki GraphicRaycaster yang dapat mencegat klik!");
+                        allPassed = false;
+                    }
+
+                    if (h.IsPlayer) playerBars++;
+                    else if (h.TeamId == 0) blueBars++;
+                    else if (h.TeamId == 1) redBars++;
+                }
+            }
+
+            if (playerBars == 1 && blueBars == 2 && redBars == 3)
+            {
+                Debug.Log($"[VALIDASI 5 PASSED] 6 Karakter terverifikasi: 1 Player ({playerBars}), 2 Blue Bot ({blueBars}), 3 Red Bot ({redBars}). Semua memiliki HealthBarWorld tanpa duplikat.");
+            }
+            else
+            {
+                Debug.LogError($"[VALIDASI 5 FAILED] Komposisi roster tidak sesuai 3v3! Player={playerBars}, BlueBots={blueBars}, RedBots={redBars}");
+                allPassed = false;
+            }
+
+            if (allPassed)
+            {
+                Debug.Log("<color=green>[ArenaClashBuilder] === SEMUA VALIDASI EDITMODE BERHASIL LULUS! ===</color>");
+            }
+            else
+            {
+                Debug.LogError("<color=red>[ArenaClashBuilder] === TERDAPAT VALIDASI YANG GAGAL! ===</color>");
+            }
+
+            return allPassed;
+        }
+
+        public static void ValidateArenaClashFromCommandLine()
+        {
+            Debug.Log("[ArenaClashBuilder] Menjalankan validasi dari command line...");
+            bool passed = ValidateArenaClash();
+            EditorApplication.Exit(passed ? 0 : 1);
         }
         #endregion
 
@@ -784,6 +1070,7 @@ namespace MultiverseArcade.EditorTools
             btnGo.transform.SetParent(parent, false);
             Image img = btnGo.AddComponent<Image>();
             img.color = btnColor;
+            img.raycastTarget = true; // Tombol interaktif harus menerima raycast
 
             Button btn = btnGo.AddComponent<Button>();
             ColorBlock cb = btn.colors;
@@ -806,6 +1093,8 @@ namespace MultiverseArcade.EditorTools
             GameObject sliderGo = new GameObject(name);
             sliderGo.transform.SetParent(parent, false);
             Slider slider = sliderGo.AddComponent<Slider>();
+            slider.interactable = false; // Slider status display tidak perlu interaktif
+            slider.transition = Selectable.Transition.None;
 
             RectTransform rt = sliderGo.GetComponent<RectTransform>();
             rt.anchoredPosition = pos;
@@ -816,6 +1105,7 @@ namespace MultiverseArcade.EditorTools
             bg.transform.SetParent(sliderGo.transform, false);
             Image bgImg = bg.AddComponent<Image>();
             bgImg.color = new Color(0.1f, 0.12f, 0.18f, 0.9f);
+            bgImg.raycastTarget = false; // BUG FIX: Raycast Target OFF
             RectTransform bgRt = bg.GetComponent<RectTransform>();
             bgRt.anchorMin = Vector2.zero;
             bgRt.anchorMax = Vector2.one;
@@ -834,6 +1124,7 @@ namespace MultiverseArcade.EditorTools
             fill.transform.SetParent(fillArea.transform, false);
             Image fillImg = fill.AddComponent<Image>();
             fillImg.color = fillColor;
+            fillImg.raycastTarget = false; // BUG FIX: Raycast Target OFF
             RectTransform fillRt = fill.GetComponent<RectTransform>();
             fillRt.sizeDelta = Vector2.zero;
 

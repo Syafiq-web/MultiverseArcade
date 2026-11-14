@@ -11,6 +11,7 @@ namespace MultiverseArcade.Core
     {
         [SerializeField] private string _gameId = "placeholder";
         public string GameId => _gameId;
+        public bool CanPause => true;
 
         public void OnGameEnter()
         {

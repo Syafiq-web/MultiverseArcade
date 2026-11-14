@@ -13,6 +13,7 @@ namespace MultiverseArcade.Syafiq
         public static ArenaGameEntry Instance { get; private set; }
 
         public string GameId => "syafiq";
+        public bool CanPause => ArenaMatchManager.Instance != null && ArenaMatchManager.Instance.CurrentMatchState == MatchState.Playing;
 
         private void Awake()
         {

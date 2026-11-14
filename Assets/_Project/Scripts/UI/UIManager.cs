@@ -41,6 +41,8 @@ namespace MultiverseArcade.Core
             if (_loadingScreenPanel != null) _loadingScreenPanel.SetActive(false);
         }
 
+        public bool HasPauseOverlay => _pauseOverlayPanel != null;
+
         public void ShowPauseOverlay(bool show)
         {
             if (_pauseOverlayPanel != null)

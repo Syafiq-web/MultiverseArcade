@@ -206,8 +206,13 @@ namespace MultiverseArcade.Core
         {
             if (_currentState != AppState.InGame) return;
 
+            // Kondisi tepi: Periksa apakah gameplay mengizinkan pause (misal saat countdown / finished ditolak)
+            if (CurrentArcadeGame != null && !CurrentArcadeGame.CanPause) return;
+
             SetState(AppState.Paused);
             Time.timeScale = 0.0f;
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
 
             if (CurrentArcadeGame != null)
             {
@@ -229,6 +234,8 @@ namespace MultiverseArcade.Core
 
             Time.timeScale = 1.0f;
             SetState(AppState.InGame);
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
 
             if (CurrentArcadeGame != null)
             {

@@ -12,6 +12,11 @@ namespace MultiverseArcade.Core
         string GameId { get; }
 
         /// <summary>
+        /// Apakah game saat ini mengizinkan jeda/pause (misal saat playing = true, saat countdown/finished = false).
+        /// </summary>
+        bool CanPause => true;
+
+        /// <summary>
         /// Dipanggil ketika scene game selesai dimuat dan gameplay dimulai.
         /// </summary>
         void OnGameEnter();
