@@ -85,3 +85,19 @@ Dokumen ini mencatat setiap keputusan arsitektural dan teknis yang diambil berda
 - **Rujukan GDD:** Prompt & Bagian 2.2. ("Pakai Global Pause Overlay yang sudah ada, jangan buat duplikat; hubungkan ke OnGamePause/OnGameResume.")
 - **Keputusan:** Menghubungkan tombol Esc dan event `IArcadeGame.OnGamePause()` / `OnGameResume()` ke sistem pause global Hub.
 - **Alasan:** Menjamin konsistensi UX di seluruh 5 game arcade dan mencegah duplikasi kode atau konflik timeScale.
+
+---
+
+### DEC-011: Proteksi Gerak Dash & Rigidbody Non-Kinematic
+- **Pilihan yang Tersedia:** Teleportasi instan `transform.position += dir * dist` vs. `Physics.SphereCast` dengan batas koordinat arena dan gerak via `Rigidbody.velocity`.
+- **Rujukan GDD:** Prompt Fase 6 & Bagian 5.4. ("Dash TIDAK boleh menembus tembok atau keluar arena. PlayerController harus memakai Rigidbody NON-kinematic dengan gerak via velocity sehingga tidak tembus tembok, cover, dan bot.")
+- **Keputusan:** `PlayerController` menggunakan `Rigidbody` non-kinematic dengan `FreezeRotationX | FreezeRotationZ | FreezePositionY` dan `CollisionDetectionMode.Continuous`. Skill Dash Blaze (`ExecuteDash`) menggunakan `Physics.SphereCast` dengan stopping distance 0.2 unit sebelum collider rintangan serta clamping posisi absolut dalam batas aman arena (`[-13.8, 13.8]`).
+- **Alasan:** Menghilangkan resiko clipping/tembus tembok atau keluar arena secara fisik tanpa mengorbankan responsivitas kendali pemain.
+
+---
+
+### DEC-012: Arsitektur Efek Status (StatusEffectController) & Multiplier
+- **Pilihan yang Tersedia:** Polling boolean di masing-masing skrip gerak/tembak vs. Komponen modular `StatusEffectController` per karakter.
+- **Rujukan GDD:** Bagian 5.5, 5.7 & Prompt Fase 6. ("StatusEffectController per karakter: Slow, Stun, Shield, Haste, Damage Boost dihitung sebagai multiplier, timer memakai scaled time, di-reset saat mati/respawn/rematch.")
+- **Keputusan:** Menambahkan komponen `StatusEffectController` ke Player dan seluruh Bot AI. Menghitung pengali (`SpeedMultiplier`, `DamageMultiplier`, `DamageTakenMultiplier`) dan flag `IsStunned`. Timer dihitung menggunakan `Time.deltaTime` sehingga otomatis terjeda saat game pause (`timeScale = 0`).
+- **Alasan:** Memudahkan ekstensi jenis efek status di masa depan secara decoupled dan memastikan konsistensi sinkronisasi timer dengan sistem pause.

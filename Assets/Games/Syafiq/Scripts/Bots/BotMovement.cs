@@ -16,6 +16,7 @@ namespace MultiverseArcade.Syafiq
         [SerializeField] private float _stoppingDistance = 4f;
 
         private NavMeshAgent _agent;
+        private StatusEffectController _statusEffects;
         private Vector3 _lastPosition;
         private float _stuckTimer = 0f;
         private float _setDestTimer = 0f;
@@ -26,6 +27,7 @@ namespace MultiverseArcade.Syafiq
         private void Awake()
         {
             _agent = GetComponent<NavMeshAgent>();
+            _statusEffects = GetComponent<StatusEffectController>();
             _agent.speed = _moveSpeed;
             _agent.angularSpeed = _angularSpeed;
             _agent.stoppingDistance = _stoppingDistance;
@@ -33,6 +35,21 @@ namespace MultiverseArcade.Syafiq
             _agent.obstacleAvoidanceType = ObstacleAvoidanceType.HighQualityObstacleAvoidance;
 
             _lastPosition = transform.position;
+        }
+
+        private void Update()
+        {
+            if (_agent == null || !_agent.isActiveAndEnabled || !_agent.isOnNavMesh) return;
+
+            if (_statusEffects != null && _statusEffects.IsStunned)
+            {
+                _agent.isStopped = true;
+                return;
+            }
+
+            _agent.isStopped = false;
+            float speedMult = _statusEffects != null ? _statusEffects.MoveSpeedMultiplier : 1.0f;
+            _agent.speed = _moveSpeed * speedMult;
         }
 
         public void SetSpeed(float speed)

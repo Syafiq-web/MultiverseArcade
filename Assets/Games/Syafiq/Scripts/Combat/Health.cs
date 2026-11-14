@@ -74,12 +74,22 @@ namespace MultiverseArcade.Syafiq
             // Tolak jika satu tim (Friendly Fire OFF - GDD 5.6)
             if (info.attackerTeamId == _teamId) return false;
 
-            int actualDmg = Mathf.Max(1, info.amount);
+            // Integrasi StatusEffectController (Shield -60% damage)
+            StatusEffectController sec = GetComponent<StatusEffectController>();
+            float dmgMult = sec != null ? sec.DamageTakenMultiplier : 1.0f;
+            int actualDmg = Mathf.Max(1, Mathf.RoundToInt(info.amount * dmgMult));
+
             _currentHealth = Mathf.Max(0, _currentHealth - actualDmg);
 
             // Audio & Visual Hit Reaction
             PlayHurtAudio();
             TriggerHitFlash();
+
+            // Beri tahu attacker untuk mengisi super meter
+            if (info.attacker != null)
+            {
+                ArenaEvents.RaiseDamageCaused(info.attacker, actualDmg);
+            }
 
             // Trigger floating damage number
             ArenaEvents.RaiseDamageDealt(info.hitPoint != Vector3.zero ? info.hitPoint : transform.position + Vector3.up, actualDmg, info.isCritical);
@@ -87,7 +97,7 @@ namespace MultiverseArcade.Syafiq
 
             if (_currentHealth <= 0)
             {
-                Die(info.attackerTeamId, info.attacker != null ? info.attacker.name : "Opponent");
+                Die(info.attackerTeamId, info.attacker != null ? info.attacker.name : "Opponent", info.attacker);
             }
 
             return true;
@@ -106,6 +116,13 @@ namespace MultiverseArcade.Syafiq
             _currentHealth = _maxHealth;
             gameObject.SetActive(true);
 
+            // Reset status effects saat respawn / rematch
+            StatusEffectController sec = GetComponent<StatusEffectController>();
+            if (sec != null)
+            {
+                sec.ClearAllEffects();
+            }
+
             if (_instancedMat != null)
             {
                 _instancedMat.color = _originalColor;
@@ -114,13 +131,25 @@ namespace MultiverseArcade.Syafiq
             ArenaEvents.RaiseHealthChanged(this, _currentHealth, _maxHealth);
         }
 
-        private void Die(int killerTeamId, string killerName)
+        private void Die(int killerTeamId, string killerName, GameObject killerObj = null)
         {
             if (_isDead) return;
             _isDead = true;
 
             PlayDeathAudio();
             Debug.Log($"[Health] {_characterName} tereliminasi oleh {killerName} (Tim {killerTeamId})");
+
+            // Reset status effects saat mati
+            StatusEffectController sec = GetComponent<StatusEffectController>();
+            if (sec != null)
+            {
+                sec.ClearAllEffects();
+            }
+
+            if (killerObj != null)
+            {
+                ArenaEvents.RaiseKillScored(killerObj);
+            }
 
             ArenaEvents.RaiseCharacterDied(this, killerTeamId, killerName);
         }

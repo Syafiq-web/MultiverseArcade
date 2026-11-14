@@ -20,7 +20,7 @@ namespace MultiverseArcade.Syafiq
         private float _aliveTimer = 0f;
         private bool _isActive = false;
 
-        public void Launch(Vector3 spawnPos, Vector3 direction, int teamId, GameObject owner, SO_Projectile data = null)
+        public void Launch(Vector3 spawnPos, Vector3 direction, int teamId, GameObject owner, SO_Projectile data = null, float damageMultiplier = 1.0f)
         {
             transform.position = spawnPos;
             transform.rotation = Quaternion.LookRotation(direction);
@@ -30,10 +30,14 @@ namespace MultiverseArcade.Syafiq
 
             if (data != null)
             {
-                _damage = data.damage;
+                _damage = Mathf.RoundToInt(data.damage * damageMultiplier);
                 _speed = data.speed;
                 _lifetime = data.lifetime;
                 _radius = data.radius;
+            }
+            else
+            {
+                _damage = Mathf.RoundToInt(_damage * damageMultiplier);
             }
 
             _velocity = direction.normalized * _speed;

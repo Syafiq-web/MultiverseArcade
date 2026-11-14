@@ -62,7 +62,7 @@ namespace MultiverseArcade.Syafiq
             }
         }
 
-        public Projectile SpawnProjectile(Vector3 position, Vector3 direction, int teamId, GameObject owner, SO_Projectile data)
+        public Projectile SpawnProjectile(Vector3 position, Vector3 direction, int teamId, GameObject owner, SO_Projectile data, float damageMultiplier = 1.0f)
         {
             Projectile p = null;
             if (_availablePool.Count > 0)
@@ -78,7 +78,7 @@ namespace MultiverseArcade.Syafiq
                 _allSpawned.Add(p);
             }
 
-            p.Launch(position, direction, teamId, owner, data);
+            p.Launch(position, direction, teamId, owner, data, damageMultiplier);
             return p;
         }
 

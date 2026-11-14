@@ -31,6 +31,8 @@ namespace MultiverseArcade.Syafiq
         public static event Action<MatchState> OnMatchStateChanged;
         public static event Action<MatchResult, int, int> OnMatchFinished;
         public static event Action<Vector3, int, bool> OnDamageDealt;
+        public static event Action<GameObject, int> OnDamageCaused;
+        public static event Action<GameObject> OnKillScored;
 
         public static void RaiseHealthChanged(Health h, int cur, int max) => OnHealthChanged?.Invoke(h, cur, max);
         public static void RaiseCharacterDied(Health v, int killerTeam, string killerName) => OnCharacterDied?.Invoke(v, killerTeam, killerName);
@@ -39,6 +41,8 @@ namespace MultiverseArcade.Syafiq
         public static void RaiseMatchStateChanged(MatchState state) => OnMatchStateChanged?.Invoke(state);
         public static void RaiseMatchFinished(MatchResult res, int blue, int red) => OnMatchFinished?.Invoke(res, blue, red);
         public static void RaiseDamageDealt(Vector3 pos, int dmg, bool isCrit) => OnDamageDealt?.Invoke(pos, dmg, isCrit);
+        public static void RaiseDamageCaused(GameObject attacker, int dmg) => OnDamageCaused?.Invoke(attacker, dmg);
+        public static void RaiseKillScored(GameObject killer) => OnKillScored?.Invoke(killer);
 
         public static void ClearAll()
         {
@@ -49,6 +53,8 @@ namespace MultiverseArcade.Syafiq
             OnMatchStateChanged = null;
             OnMatchFinished = null;
             OnDamageDealt = null;
+            OnDamageCaused = null;
+            OnKillScored = null;
         }
     }
 }

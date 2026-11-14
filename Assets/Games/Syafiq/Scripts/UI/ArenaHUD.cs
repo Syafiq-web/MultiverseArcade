@@ -6,7 +6,12 @@ using TMPro;
 namespace MultiverseArcade.Syafiq
 {
     /// <summary>
-    /// HUD gameplay utama Arena Clash 3D: Skor Tim, Timer, Countdown, Player HP Bar, dan Damage Number Spawner.
+    /// HUD gameplay utama Arena Clash 3D:
+    /// - Skor Tim, Timer, Countdown
+    /// - Player HP Bar
+    /// - Radial Cooldown Skill (Space)
+    /// - Super Meter Slider & Status Ready (E)
+    /// - Damage Number Spawner
     /// Sesuai GDD Bagian 5.11.
     /// </summary>
     public class ArenaHUD : MonoBehaviour
@@ -23,10 +28,19 @@ namespace MultiverseArcade.Syafiq
         [Header("Player HUD (Bottom Left)")]
         [SerializeField] private Slider _playerHpSlider;
         [SerializeField] private TextMeshProUGUI _playerHpText;
+        [SerializeField] private TextMeshProUGUI _playerHeroLabel;
+
+        [Header("Skill & Super Controls")]
+        [SerializeField] private Image _skillCooldownFill;
+        [SerializeField] private TextMeshProUGUI _skillKeyText;
+        [SerializeField] private Slider _superMeterSlider;
+        [SerializeField] private TextMeshProUGUI _superMeterText;
 
         [Header("Damage Number Prefab")]
         [SerializeField] private GameObject _damageNumberPrefab;
         [SerializeField] private Transform _damageNumberContainer;
+
+        private PlayerSkillController _boundSkillCtrl;
 
         private void OnEnable()
         {
@@ -35,6 +49,8 @@ namespace MultiverseArcade.Syafiq
             ArenaEvents.OnMatchStateChanged += HandleMatchStateChanged;
             ArenaEvents.OnHealthChanged += HandleHealthChanged;
             ArenaEvents.OnDamageDealt += HandleDamageDealt;
+
+            BindPlayerSkillEvents();
         }
 
         private void OnDisable()
@@ -44,6 +60,17 @@ namespace MultiverseArcade.Syafiq
             ArenaEvents.OnMatchStateChanged -= HandleMatchStateChanged;
             ArenaEvents.OnHealthChanged -= HandleHealthChanged;
             ArenaEvents.OnDamageDealt -= HandleDamageDealt;
+
+            UnbindPlayerSkillEvents();
+        }
+
+        private void Update()
+        {
+            // Polling fallback jika skill controller belum terikat saat OnEnable
+            if (_boundSkillCtrl == null)
+            {
+                BindPlayerSkillEvents();
+            }
         }
 
         public void BindControls(TextMeshProUGUI blueScore, TextMeshProUGUI redScore, TextMeshProUGUI timer,
@@ -62,6 +89,115 @@ namespace MultiverseArcade.Syafiq
             _damageNumberContainer = dmgNumContainer;
 
             if (_countdownContainer != null) _countdownContainer.SetActive(false);
+        }
+
+        public void BindSkillAndSuperControls(Image skillFill, TextMeshProUGUI skillText,
+            Slider superSlider, TextMeshProUGUI superText, TextMeshProUGUI heroLabel)
+        {
+            _skillCooldownFill = skillFill;
+            _skillKeyText = skillText;
+            _superMeterSlider = superSlider;
+            _superMeterText = superText;
+            _playerHeroLabel = heroLabel;
+
+            if (_skillCooldownFill != null) _skillCooldownFill.fillAmount = 0f;
+            if (_superMeterSlider != null) _superMeterSlider.value = 0f;
+            if (_superMeterText != null) _superMeterText.text = "SUPER: 0%";
+        }
+
+        public void SetHeroLabel(string heroName)
+        {
+            if (_playerHeroLabel != null)
+            {
+                _playerHeroLabel.text = $"{heroName.ToUpper()} (YOU)";
+            }
+        }
+
+        private void BindPlayerSkillEvents()
+        {
+            if (_boundSkillCtrl != null) return;
+
+            _boundSkillCtrl = PlayerSkillController.Instance;
+            if (_boundSkillCtrl == null)
+            {
+                _boundSkillCtrl = FindObjectOfType<PlayerSkillController>();
+            }
+
+            if (_boundSkillCtrl != null)
+            {
+                _boundSkillCtrl.OnSkillCooldownChanged += HandleSkillCooldownChanged;
+                _boundSkillCtrl.OnSuperChargeChanged += HandleSuperChargeChanged;
+                _boundSkillCtrl.OnSuperReadyStateChanged += HandleSuperReadyChanged;
+
+                HandleSkillCooldownChanged(_boundSkillCtrl.SkillCooldownRemaining, _boundSkillCtrl.SkillCooldownMax);
+                HandleSuperChargeChanged(_boundSkillCtrl.SuperChargePercent);
+                HandleSuperReadyChanged(_boundSkillCtrl.IsSuperReady);
+            }
+        }
+
+        private void UnbindPlayerSkillEvents()
+        {
+            if (_boundSkillCtrl != null)
+            {
+                _boundSkillCtrl.OnSkillCooldownChanged -= HandleSkillCooldownChanged;
+                _boundSkillCtrl.OnSuperChargeChanged -= HandleSuperChargeChanged;
+                _boundSkillCtrl.OnSuperReadyStateChanged -= HandleSuperReadyChanged;
+                _boundSkillCtrl = null;
+            }
+        }
+
+        private void HandleSkillCooldownChanged(float remaining, float max)
+        {
+            if (_skillCooldownFill != null)
+            {
+                _skillCooldownFill.fillAmount = max > 0f ? (remaining / max) : 0f;
+            }
+
+            if (_skillKeyText != null)
+            {
+                if (remaining > 0f)
+                {
+                    _skillKeyText.text = $"{remaining:F1}s";
+                    _skillKeyText.color = new Color(1f, 0.6f, 0.2f);
+                }
+                else
+                {
+                    _skillKeyText.text = "SPACE";
+                    _skillKeyText.color = Color.white;
+                }
+            }
+        }
+
+        private void HandleSuperChargeChanged(float percent)
+        {
+            if (_superMeterSlider != null)
+            {
+                _superMeterSlider.value = percent;
+            }
+
+            if (_superMeterText != null && percent < 100f)
+            {
+                _superMeterText.text = $"SUPER: {Mathf.FloorToInt(percent)}%";
+                _superMeterText.color = new Color(0.7f, 0.85f, 1f);
+            }
+        }
+
+        private void HandleSuperReadyChanged(bool isReady)
+        {
+            if (_superMeterText != null)
+            {
+                if (isReady)
+                {
+                    _superMeterText.text = "⚡ SUPER READY! (E)";
+                    _superMeterText.color = new Color(1f, 0.9f, 0.1f);
+                }
+                else
+                {
+                    float cur = _boundSkillCtrl != null ? _boundSkillCtrl.SuperChargePercent : 0f;
+                    _superMeterText.text = $"SUPER: {Mathf.FloorToInt(cur)}%";
+                    _superMeterText.color = new Color(0.7f, 0.85f, 1f);
+                }
+            }
         }
 
         private void HandleScoreChanged(int blue, int red)

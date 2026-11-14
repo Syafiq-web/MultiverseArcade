@@ -114,6 +114,11 @@ namespace MultiverseArcade.Syafiq
             return true;
         }
 
+        public void SetEvaluationInterval(float interval)
+        {
+            _evalInterval = Mathf.Max(0.1f, interval);
+        }
+
         public Transform GetPlayerTransform()
         {
             if (_playerTransform == null) FindPlayerReference();

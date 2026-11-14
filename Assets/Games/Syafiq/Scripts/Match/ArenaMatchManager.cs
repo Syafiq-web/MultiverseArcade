@@ -7,8 +7,8 @@ namespace MultiverseArcade.Syafiq
 {
     /// <summary>
     /// Koordinator utama pertandingan Arena Clash 3D (3v3 Team Deathmatch).
-    /// Mengatur alur Countdown, Timer, Skor, Respawn, dan Kondisi Selesai (Menang/Kalah/Seri).
-    /// Sesuai GDD Bagian 5.1 - 5.5, 5.18.
+    /// Mengatur alur Countdown, Timer, Skor, Respawn, Seleksi Hero/Difficulty, dan Kondisi Selesai.
+    /// Sesuai GDD Bagian 5.1 - 5.5, 5.7, 5.9, 5.18.
     /// </summary>
     public class ArenaMatchManager : MonoBehaviour
     {
@@ -20,6 +20,15 @@ namespace MultiverseArcade.Syafiq
         [SerializeField] private float _matchDuration = 180f;
         [SerializeField] private float _countdownDuration = 3f;
         [SerializeField] private float _respawnTime = 4f;
+
+        [Header("UI & Selection")]
+        [SerializeField] private HeroSelectionUI _heroSelectionUI;
+        [SerializeField] private ArenaHUD _hud;
+
+        [Header("Heroes & Difficulties")]
+        [SerializeField] private SO_Hero _currentHero;
+        [SerializeField] private SO_Hero _bulwarkHero;
+        [SerializeField] private SO_BotDifficulty _currentDifficulty;
 
         [Header("Spawn Points")]
         [SerializeField] private Transform[] _blueSpawnPoints;
@@ -41,6 +50,8 @@ namespace MultiverseArcade.Syafiq
         public int RedScore => _redScore;
         public float TimeRemaining => _timeRemaining;
         public MatchState CurrentMatchState => _matchState;
+        public SO_Hero CurrentHero => _currentHero;
+        public SO_BotDifficulty CurrentDifficulty => _currentDifficulty;
 
         private void Awake()
         {
@@ -74,7 +85,28 @@ namespace MultiverseArcade.Syafiq
 
         private void Start()
         {
-            StartMatchCountdown();
+            if (_heroSelectionUI != null)
+            {
+                // Tampilkan panel Pilih Hero & Kesulitan sebelum match dimulai
+                _heroSelectionUI.ShowPanel();
+            }
+            else
+            {
+                StartMatchCountdown();
+            }
+        }
+
+        public void BindSelectionUI(HeroSelectionUI selectionUI, ArenaHUD hud)
+        {
+            _heroSelectionUI = selectionUI;
+            _hud = hud;
+        }
+
+        public void SetHeroReferences(SO_Hero blazeHero, SO_Hero bulwarkHero, SO_BotDifficulty defaultDiff)
+        {
+            _currentHero = blazeHero;
+            _bulwarkHero = bulwarkHero;
+            _currentDifficulty = defaultDiff;
         }
 
         public void SetupCharacters(Health player, List<Health> blueBots, List<Health> redBots, Transform[] blueSpawns, Transform[] redSpawns)
@@ -89,6 +121,63 @@ namespace MultiverseArcade.Syafiq
 
             _redTeam.Clear();
             if (redBots != null) _redTeam.AddRange(redBots);
+        }
+
+        public void ApplyMatchConfiguration(SO_Hero hero, SO_BotDifficulty difficulty)
+        {
+            if (hero != null) _currentHero = hero;
+            if (difficulty != null) _currentDifficulty = difficulty;
+
+            // 1. Terapkan konfigurasi ke Player
+            if (_playerCharacter != null && _currentHero != null)
+            {
+                _playerCharacter.Setup(0, _currentHero.heroName, _currentHero.maxHealth, true);
+
+                PlayerController pc = _playerCharacter.GetComponent<PlayerController>();
+                if (pc != null) pc.SetHeroData(_currentHero);
+
+                PlayerCombat combat = _playerCharacter.GetComponent<PlayerCombat>();
+                if (combat != null) combat.SetHeroData(_currentHero);
+
+                PlayerSkillController skill = _playerCharacter.GetComponent<PlayerSkillController>();
+                if (skill != null) skill.SetHeroData(_currentHero);
+
+                Renderer rend = _playerCharacter.GetComponent<Renderer>();
+                if (rend != null) rend.material.color = _currentHero.heroColor;
+
+                if (_hud != null)
+                {
+                    _hud.SetHeroLabel(_currentHero.heroName);
+                }
+            }
+
+            // 2. Terapkan variasi hero dan kesulitan ke Bot AI
+            ConfigureBotRoster();
+        }
+
+        private void ConfigureBotRoster()
+        {
+            // Variasi Bot: Blue Bot 1 = Blaze, Blue Bot 2 = Bulwark
+            // Red Bot 1 = Blaze, Red Bot 2 = Bulwark, Red Bot 3 = Blaze
+            for (int i = 1; i < _blueTeam.Count; i++)
+            {
+                BotBrain brain = _blueTeam[i].GetComponent<BotBrain>();
+                if (brain != null)
+                {
+                    SO_Hero botHero = (i % 2 == 1 && _bulwarkHero != null) ? _bulwarkHero : _currentHero;
+                    brain.Setup(botHero, _currentDifficulty);
+                }
+            }
+
+            for (int i = 0; i < _redTeam.Count; i++)
+            {
+                BotBrain brain = _redTeam[i].GetComponent<BotBrain>();
+                if (brain != null)
+                {
+                    SO_Hero botHero = (i == 1 && _bulwarkHero != null) ? _bulwarkHero : _currentHero;
+                    brain.Setup(botHero, _currentDifficulty);
+                }
+            }
         }
 
         public void StartMatchCountdown()
@@ -209,7 +298,6 @@ namespace MultiverseArcade.Syafiq
             }
             else
             {
-                // AC-10: Waktu habis dengan skor imbang = Draw
                 result = MatchResult.Draw;
             }
 
@@ -253,11 +341,24 @@ namespace MultiverseArcade.Syafiq
                 ProjectilePool.Instance.ClearPool();
             }
 
+            // Rematch tetap memakai hero & difficulty terakhir yang dipilih
             StartMatchCountdown();
         }
 
         public void ResetAllCharacterPositions()
         {
+            // Reset Power-Up items di arena
+            foreach (var p in PowerUpItem.ActivePowerUps)
+            {
+                if (p != null) p.ResetPowerUp();
+            }
+
+            // Reset Player Skill & Super
+            if (PlayerSkillController.Instance != null)
+            {
+                PlayerSkillController.Instance.ResetSkillAndSuper();
+            }
+
             for (int i = 0; i < _blueTeam.Count; i++)
             {
                 if (_blueTeam[i] == null) continue;
