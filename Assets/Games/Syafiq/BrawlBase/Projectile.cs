@@ -7,6 +7,7 @@ namespace MultiverseArcade.Syafiq.Brawl
     {
         [SerializeField] float speed = 16f;
         [SerializeField] int damage = 800;
+        [SerializeField] public bool grantSuperCharge = true;
 
         Vector3 startPos;
         float maxRange;
@@ -52,6 +53,10 @@ namespace MultiverseArcade.Syafiq.Brawl
             if (other.TryGetComponent(out Health hp))
             {
                 hp.TakeDamage(damage);
+                if (grantSuperCharge && owner != null && owner.TryGetComponent(out SuperMeter sm))
+                {
+                    sm.OnDealtDamage(damage);
+                }
                 Destroy(gameObject);
             }
         }

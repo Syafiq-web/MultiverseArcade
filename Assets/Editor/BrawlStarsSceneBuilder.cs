@@ -24,9 +24,9 @@ namespace MultiverseArcade.EditorTools
         [InitializeOnLoadMethod]
         private static void AutoRunOnce()
         {
-            if (!EditorPrefs.GetBool("BrawlStars_GemGrab_AutoBuilt_v3", false))
+            if (!EditorPrefs.GetBool("BrawlStars_GemGrab_AutoBuilt_v4", false))
             {
-                EditorPrefs.SetBool("BrawlStars_GemGrab_AutoBuilt_v3", true);
+                EditorPrefs.SetBool("BrawlStars_GemGrab_AutoBuilt_v4", true);
                 EditorApplication.delayCall += () =>
                 {
                     BuildSceneInternal();
@@ -41,7 +41,7 @@ namespace MultiverseArcade.EditorTools
 
         private static void BuildSceneInternal()
         {
-            Debug.Log("[BrawlStarsSceneBuilder] === MEMULAI BUILD BRAWL STARS GEM GRAB (3v3) ===");
+            Debug.Log("[BrawlStarsSceneBuilder] === MEMULAI BUILD BRAWL STARS GEM GRAB (3v3) DENGAN SUPER & GADGET ===");
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             // Layer setup
@@ -95,8 +95,9 @@ namespace MultiverseArcade.EditorTools
             CreateWall(arenaRoot.transform, "Wall_CenterLeft", new Vector3(-4.5f, 1f, 0), new Vector3(1.6f, 2f, 4.5f), wallMat);
             CreateWall(arenaRoot.transform, "Wall_CenterRight", new Vector3(4.5f, 1f, 0), new Vector3(1.6f, 2f, 4.5f), wallMat);
 
-            CreateWall(arenaRoot.transform, "Crate_CenterNorth", new Vector3(0, 0.75f, 3.5f), new Vector3(2.5f, 1.5f, 1.5f), crateMat);
-            CreateWall(arenaRoot.transform, "Crate_CenterSouth", new Vector3(0, 0.75f, -3.5f), new Vector3(2.5f, 1.5f, 1.5f), crateMat);
+            // Peti Kayu yang dapat dihancurkan Super (BreakableWall)
+            CreateBreakableCrate(arenaRoot.transform, "Crate_CenterNorth", new Vector3(0, 0.75f, 3.5f), new Vector3(2.5f, 1.5f, 1.5f), crateMat);
+            CreateBreakableCrate(arenaRoot.transform, "Crate_CenterSouth", new Vector3(0, 0.75f, -3.5f), new Vector3(2.5f, 1.5f, 1.5f), crateMat);
 
             CreateWall(arenaRoot.transform, "Wall_NW", new Vector3(-8.5f, 1f, 7.5f), new Vector3(3.5f, 2f, 1.5f), wallMat);
             CreateWall(arenaRoot.transform, "Wall_SE", new Vector3(8.5f, 1f, -7.5f), new Vector3(3.5f, 2f, 1.5f), wallMat);
@@ -249,15 +250,36 @@ namespace MultiverseArcade.EditorTools
             HitFeedback playerHit = playerGo.AddComponent<HitFeedback>();
             playerHit.Setup(true);
 
+            // --- Super & Gadget System on Player ---
+            SuperMeter playerSm = playerGo.AddComponent<SuperMeter>();
+            playerSm.SetDamageToFull(3200f);
+
+            ShellySuper playerSuper = playerGo.AddComponent<ShellySuper>();
+            playerSuper.Setup(muzzleGo.transform, unitMask | (1 << LayerMask.NameToLayer("Default")));
+
+            DashGadget playerDash = playerGo.AddComponent<DashGadget>();
+            playerDash.Setup(modelGo.transform, 4.5f, 0.18f);
+
+            GadgetSlot playerGadget = playerGo.AddComponent<GadgetSlot>();
+            playerGadget.Setup(playerDash, 3, 1f);
+
+            // Super VirtualJoystick on HUD
+            VirtualJoystick superStick = CreateSuperJoystick(canvasGo.transform, "Joystick_Super", new Vector2(-120, 390), playerSm);
+            SuperController playerSc = playerGo.AddComponent<SuperController>();
+            playerSc.Setup(superStick, playerSuper, modelGo.transform, unitMask);
+
+            // Gadget Button on HUD
+            CreateGadgetButton(canvasGo.transform, "Button_Gadget", new Vector2(-380, 160), playerGadget);
+
             // 12. Bots (3v3 Match)
             // Blue Teammates (teamId = 0)
-            CreateBotUnit("BlueBot_1", 0, bluePositions[0], unitLayer, unitMask, playerProjPrefab, gemPrefab, shieldMat, "skin_adventurer.png");
-            CreateBotUnit("BlueBot_2", 0, bluePositions[2], unitLayer, unitMask, playerProjPrefab, gemPrefab, shieldMat, "cyborgFemaleA.png");
+            CreateBotUnit("BlueBot_1", 0, bluePositions[0], unitLayer, unitMask, playerProjPrefab, gemPrefab, shieldMat, "skin_adventurer.png", true);
+            CreateBotUnit("BlueBot_2", 0, bluePositions[2], unitLayer, unitMask, playerProjPrefab, gemPrefab, shieldMat, "cyborgFemaleA.png", false);
 
             // Red Enemies (teamId = 1)
-            CreateBotUnit("RedBot_1", 1, redPositions[1], unitLayer, unitMask, enemyProjPrefab, gemPrefab, shieldMat, "skin_robot.png");
-            CreateBotUnit("RedBot_2", 1, redPositions[0], unitLayer, unitMask, enemyProjPrefab, gemPrefab, shieldMat, "criminalMaleA.png");
-            CreateBotUnit("RedBot_3", 1, redPositions[2], unitLayer, unitMask, enemyProjPrefab, gemPrefab, shieldMat, "skin_orc.png");
+            CreateBotUnit("RedBot_1", 1, redPositions[1], unitLayer, unitMask, enemyProjPrefab, gemPrefab, shieldMat, "skin_robot.png", true);
+            CreateBotUnit("RedBot_2", 1, redPositions[0], unitLayer, unitMask, enemyProjPrefab, gemPrefab, shieldMat, "criminalMaleA.png", false);
+            CreateBotUnit("RedBot_3", 1, redPositions[2], unitLayer, unitMask, enemyProjPrefab, gemPrefab, shieldMat, "skin_orc.png", false);
 
             // 13. HUD UI Setup
             CreateBrawlHUD(canvasGo.transform, ac, playerHp, playerCarrier, gemManager, playerResp);
@@ -305,6 +327,25 @@ namespace MultiverseArcade.EditorTools
             wall.transform.localScale = size;
             wall.GetComponent<Renderer>().sharedMaterial = mat;
             return wall;
+        }
+
+        private static GameObject CreateBreakableCrate(Transform parent, string name, Vector3 pos, Vector3 size, Material mat)
+        {
+            GameObject crate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            crate.name = name;
+            crate.tag = "Wall";
+            crate.transform.parent = parent;
+            crate.transform.position = pos;
+            crate.transform.localScale = size;
+            crate.GetComponent<Renderer>().sharedMaterial = mat;
+
+            crate.AddComponent<BreakableWall>();
+
+            var obs = crate.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+            obs.carving = true;
+            obs.size = Vector3.one;
+
+            return crate;
         }
 
         private static GameObject CreateBushPatch(Transform parent, string name, Vector3 pos, Vector3 size, Material mat)
@@ -387,7 +428,7 @@ namespace MultiverseArcade.EditorTools
             return prefab.GetComponent<Projectile>();
         }
 
-        private static GameObject CreateBotUnit(string name, int teamId, Vector3 pos, int layer, LayerMask mask, Projectile proj, Gem gemPrefab, Material shieldMat, string skinName)
+        private static GameObject CreateBotUnit(string name, int teamId, Vector3 pos, int layer, LayerMask mask, Projectile proj, Gem gemPrefab, Material shieldMat, string skinName, bool hasColtSuper = false)
         {
             GameObject bot = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             bot.name = name;
@@ -442,6 +483,17 @@ namespace MultiverseArcade.EditorTools
 
             HitFeedback bHit = bot.AddComponent<HitFeedback>();
             bHit.Setup(false);
+
+            // Knockback Receiver & Super Meter on Bot
+            bot.AddComponent<KnockbackReceiver>();
+            SuperMeter botSm = bot.AddComponent<SuperMeter>();
+            botSm.SetDamageToFull(3200f);
+
+            if (hasColtSuper)
+            {
+                ColtSuper cs = bot.AddComponent<ColtSuper>();
+                cs.Setup(proj, muzzleGo.transform);
+            }
 
             BotAI ai = bot.AddComponent<BotAI>();
             ai.Setup(proj, muzzleGo.transform, mask);
@@ -503,6 +555,122 @@ namespace MultiverseArcade.EditorTools
 
             VirtualJoystick vj = stickGo.AddComponent<VirtualJoystick>();
             return vj;
+        }
+
+        private static VirtualJoystick CreateSuperJoystick(Transform canvasTrans, string name, Vector2 anchoredPos, SuperMeter playerSm)
+        {
+            GameObject stickGo = new GameObject(name);
+            stickGo.transform.parent = canvasTrans;
+            RectTransform stickRt = stickGo.AddComponent<RectTransform>();
+            stickRt.anchorMin = new Vector2(1, 0);
+            stickRt.anchorMax = new Vector2(1, 0);
+            stickRt.anchoredPosition = anchoredPos;
+            stickRt.sizeDelta = new Vector2(130, 130);
+
+            // Glow Image (outer ring that pulses when ready)
+            GameObject glowGo = new GameObject("Glow");
+            glowGo.transform.parent = stickGo.transform;
+            RectTransform glowRt = glowGo.AddComponent<RectTransform>();
+            glowRt.sizeDelta = new Vector2(160, 160);
+            glowRt.anchoredPosition = Vector2.zero;
+            Image glowImg = glowGo.AddComponent<Image>();
+            glowImg.color = new Color(1f, 0.95f, 0.2f, 0.65f);
+            glowImg.enabled = false;
+
+            // Background circle
+            Image bgImg = stickGo.AddComponent<Image>();
+            bgImg.color = new Color(0.2f, 0.18f, 0.1f, 0.85f);
+
+            // Radial Fill Image
+            GameObject fillGo = new GameObject("Fill");
+            fillGo.transform.parent = stickGo.transform;
+            RectTransform fillRt = fillGo.AddComponent<RectTransform>();
+            fillRt.sizeDelta = new Vector2(130, 130);
+            fillRt.anchoredPosition = Vector2.zero;
+            Image fillImg = fillGo.AddComponent<Image>();
+            fillImg.type = Image.Type.Filled;
+            fillImg.fillMethod = Image.FillMethod.Radial360;
+            fillImg.fillOrigin = (int)Image.Origin360.Top;
+            fillImg.fillClockwise = true;
+            fillImg.color = new Color(1f, 0.85f, 0.1f);
+            fillImg.fillAmount = 0f;
+
+            // Handle
+            GameObject handleGo = new GameObject("Handle");
+            handleGo.transform.parent = stickGo.transform;
+            RectTransform handleRt = handleGo.AddComponent<RectTransform>();
+            handleRt.sizeDelta = new Vector2(55, 55);
+            handleRt.anchoredPosition = Vector2.zero;
+            Image handleImg = handleGo.AddComponent<Image>();
+            handleImg.color = new Color(1f, 0.95f, 0.35f, 0.9f);
+
+            // Label Text
+            GameObject txtGo = new GameObject("SuperLabel");
+            txtGo.transform.parent = stickGo.transform;
+            RectTransform txtRt = txtGo.AddComponent<RectTransform>();
+            txtRt.sizeDelta = new Vector2(100, 30);
+            txtRt.anchoredPosition = new Vector2(0, 0);
+            Text txt = txtGo.AddComponent<Text>();
+            txt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            txt.fontSize = 18;
+            txt.fontStyle = FontStyle.Bold;
+            txt.alignment = TextAnchor.MiddleCenter;
+            txt.color = Color.black;
+            txt.text = "SUPER";
+
+            VirtualJoystick vj = stickGo.AddComponent<VirtualJoystick>();
+            SuperButtonUI sUI = stickGo.AddComponent<SuperButtonUI>();
+            sUI.Setup(playerSm, fillImg, glowImg);
+
+            return vj;
+        }
+
+        private static void CreateGadgetButton(Transform canvasTrans, string name, Vector2 anchoredPos, GadgetSlot slot)
+        {
+            GameObject btnGo = new GameObject(name);
+            btnGo.transform.parent = canvasTrans;
+            RectTransform btnRt = btnGo.AddComponent<RectTransform>();
+            btnRt.anchorMin = new Vector2(1, 0);
+            btnRt.anchorMax = new Vector2(1, 0);
+            btnRt.anchoredPosition = anchoredPos;
+            btnRt.sizeDelta = new Vector2(90, 90);
+
+            Image bgImg = btnGo.AddComponent<Image>();
+            bgImg.color = new Color(0.1f, 0.75f, 0.45f, 0.9f);
+
+            Button btn = btnGo.AddComponent<Button>();
+            CanvasGroup cg = btnGo.AddComponent<CanvasGroup>();
+
+            // Label Text
+            GameObject labelGo = new GameObject("Label");
+            labelGo.transform.parent = btnGo.transform;
+            RectTransform lblRt = labelGo.AddComponent<RectTransform>();
+            lblRt.sizeDelta = new Vector2(80, 24);
+            lblRt.anchoredPosition = new Vector2(0, 16);
+            Text lbl = labelGo.AddComponent<Text>();
+            lbl.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            lbl.fontSize = 14;
+            lbl.fontStyle = FontStyle.Bold;
+            lbl.alignment = TextAnchor.MiddleCenter;
+            lbl.color = Color.white;
+            lbl.text = "DASH";
+
+            // Uses Count Text
+            GameObject usesGo = new GameObject("UsesText");
+            usesGo.transform.parent = btnGo.transform;
+            RectTransform usesRt = usesGo.AddComponent<RectTransform>();
+            usesRt.sizeDelta = new Vector2(80, 36);
+            usesRt.anchoredPosition = new Vector2(0, -12);
+            Text usesTxt = usesGo.AddComponent<Text>();
+            usesTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            usesTxt.fontSize = 24;
+            usesTxt.fontStyle = FontStyle.Bold;
+            usesTxt.alignment = TextAnchor.MiddleCenter;
+            usesTxt.color = Color.yellow;
+            usesTxt.text = "3";
+
+            GadgetButtonUI gUI = btnGo.AddComponent<GadgetButtonUI>();
+            gUI.Setup(slot, usesTxt, cg);
         }
 
         private static void CreateBrawlHUD(Transform canvasTrans, AimController ac, Health hp, GemCarrier carrier, GemGrabManager manager, Respawnable playerResp)
