@@ -6,11 +6,13 @@ using TMPro;
 namespace MultiverseArcade.Syafiq
 {
     /// <summary>
-    /// HUD gameplay utama Arena Clash 3D:
-    /// - Skor Tim, Timer, Countdown
-    /// - Player HP Bar
+    /// HUD gameplay utama Arena Clash 3D (Enhanced Visuals):
+    /// - Skor Tim, Timer (Pulsing di 10 detik terakhir), Countdown
+    /// - Player Hero Avatar & Status Label
+    /// - Smooth Player HP Bar & Red Ghost Trail Bar
     /// - Radial Cooldown Skill (Space)
-    /// - Super Meter Slider & Status Ready (E)
+    /// - Pulsing Neon Super Meter Bar & Ready Banner (E)
+    /// - Aim Reticle HUD tracking cursor
     /// - Damage Number Spawner
     /// Sesuai GDD Bagian 5.11.
     /// </summary>
@@ -26,7 +28,9 @@ namespace MultiverseArcade.Syafiq
         [SerializeField] private TextMeshProUGUI _countdownText;
 
         [Header("Player HUD (Bottom Left)")]
+        [SerializeField] private Image _playerAvatarImg;
         [SerializeField] private Slider _playerHpSlider;
+        [SerializeField] private Slider _playerHpGhostSlider;
         [SerializeField] private TextMeshProUGUI _playerHpText;
         [SerializeField] private TextMeshProUGUI _playerHeroLabel;
 
@@ -36,11 +40,17 @@ namespace MultiverseArcade.Syafiq
         [SerializeField] private Slider _superMeterSlider;
         [SerializeField] private TextMeshProUGUI _superMeterText;
 
+        [Header("Aim Reticle")]
+        [SerializeField] private RectTransform _aimReticleRt;
+
         [Header("Damage Number Prefab")]
         [SerializeField] private GameObject _damageNumberPrefab;
         [SerializeField] private Transform _damageNumberContainer;
 
         private PlayerSkillController _boundSkillCtrl;
+        private float _targetHpValue = 100f;
+        private float _currentHpValue = 100f;
+        private float _ghostHpValue = 100f;
 
         private void OnEnable()
         {
@@ -71,6 +81,45 @@ namespace MultiverseArcade.Syafiq
             {
                 BindPlayerSkillEvents();
             }
+
+            // Smooth HP Lerp
+            if (_playerHpSlider != null)
+            {
+                _currentHpValue = Mathf.Lerp(_currentHpValue, _targetHpValue, Time.deltaTime * 15f);
+                _playerHpSlider.value = _currentHpValue;
+            }
+
+            // Smooth Ghost HP Trail
+            if (_playerHpGhostSlider != null)
+            {
+                if (_ghostHpValue > _targetHpValue)
+                {
+                    _ghostHpValue = Mathf.Lerp(_ghostHpValue, _targetHpValue, Time.deltaTime * 4f);
+                }
+                else
+                {
+                    _ghostHpValue = _targetHpValue;
+                }
+                _playerHpGhostSlider.value = _ghostHpValue;
+            }
+
+            // Pulse animation jika Super Ready
+            if (_boundSkillCtrl != null && _boundSkillCtrl.IsSuperReady && _superMeterText != null)
+            {
+                float pulse = 1f + (Mathf.Sin(Time.time * 8f) * 0.12f);
+                _superMeterText.transform.localScale = new Vector3(pulse, pulse, 1f);
+            }
+            else if (_superMeterText != null)
+            {
+                _superMeterText.transform.localScale = Vector3.one;
+            }
+
+            // Update Aim Reticle posisi mouse
+            if (_aimReticleRt != null)
+            {
+                Vector2 mousePos = Input.mousePosition;
+                _aimReticleRt.position = mousePos;
+            }
         }
 
         public void BindControls(TextMeshProUGUI blueScore, TextMeshProUGUI redScore, TextMeshProUGUI timer,
@@ -88,7 +137,21 @@ namespace MultiverseArcade.Syafiq
             _damageNumberPrefab = dmgNumPrefab;
             _damageNumberContainer = dmgNumContainer;
 
+            if (_playerHpSlider != null)
+            {
+                _currentHpValue = _playerHpSlider.value;
+                _targetHpValue = _playerHpSlider.value;
+                _ghostHpValue = _playerHpSlider.value;
+            }
+
             if (_countdownContainer != null) _countdownContainer.SetActive(false);
+        }
+
+        public void BindAvatarAndGhost(Image avatarImg, Slider ghostSlider, RectTransform reticleRt)
+        {
+            _playerAvatarImg = avatarImg;
+            _playerHpGhostSlider = ghostSlider;
+            _aimReticleRt = reticleRt;
         }
 
         public void BindSkillAndSuperControls(Image skillFill, TextMeshProUGUI skillText,
@@ -110,6 +173,15 @@ namespace MultiverseArcade.Syafiq
             if (_playerHeroLabel != null)
             {
                 _playerHeroLabel.text = $"{heroName.ToUpper()} (YOU)";
+            }
+        }
+
+        public void SetHeroAvatar(Sprite avatarSprite)
+        {
+            if (_playerAvatarImg != null && avatarSprite != null)
+            {
+                _playerAvatarImg.sprite = avatarSprite;
+                _playerAvatarImg.color = Color.white;
             }
         }
 
@@ -162,8 +234,8 @@ namespace MultiverseArcade.Syafiq
                 }
                 else
                 {
-                    _skillKeyText.text = "SPACE";
-                    _skillKeyText.color = Color.white;
+                    _skillKeyText.text = "SPACE (READY)";
+                    _skillKeyText.color = new Color(0.1f, 1f, 0.9f);
                 }
             }
         }
@@ -188,7 +260,7 @@ namespace MultiverseArcade.Syafiq
             {
                 if (isReady)
                 {
-                    _superMeterText.text = "⚡ SUPER READY! (E)";
+                    _superMeterText.text = "⚡ SUPER READY! [E] ⚡";
                     _superMeterText.color = new Color(1f, 0.9f, 0.1f);
                 }
                 else
@@ -214,14 +286,17 @@ namespace MultiverseArcade.Syafiq
             int seconds = Mathf.FloorToInt(timeRemaining % 60f);
             _timerText.text = $"{minutes:00}:{seconds:00}";
 
-            // Timer berubah merah pada 10 detik terakhir (GDD 5.11)
+            // Timer berubah merah & berdenyut pada 10 detik terakhir
             if (timeRemaining <= 10f)
             {
                 _timerText.color = new Color(1f, 0.25f, 0.25f);
+                float pulse = 1f + (Mathf.Sin(Time.time * 10f) * 0.15f);
+                _timerText.transform.localScale = new Vector3(pulse, pulse, 1f);
             }
             else
             {
                 _timerText.color = Color.white;
+                _timerText.transform.localScale = Vector3.one;
             }
         }
 
@@ -256,14 +331,19 @@ namespace MultiverseArcade.Syafiq
         {
             if (h != null && h.IsPlayer)
             {
+                _targetHpValue = cur;
                 if (_playerHpSlider != null)
                 {
                     _playerHpSlider.maxValue = max;
-                    _playerHpSlider.value = cur;
+                }
+                if (_playerHpGhostSlider != null)
+                {
+                    _playerHpGhostSlider.maxValue = max;
                 }
                 if (_playerHpText != null)
                 {
-                    _playerHpText.text = $"{cur} / {max} HP";
+                    int pct = max > 0 ? Mathf.RoundToInt(((float)cur / max) * 100f) : 0;
+                    _playerHpText.text = $"{cur} / {max} HP ({pct}%)";
                 }
             }
         }

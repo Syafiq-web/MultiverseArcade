@@ -29,6 +29,11 @@ namespace MultiverseArcade.Syafiq
         public string description = "Hero penembak seimbang dengan mobilitas tinggi dan salvo burst.";
         public Color heroColor = new Color(0f, 0.85f, 1f);
 
+        [Header("Visual & Assets")]
+        public Sprite portrait;
+        public GameObject characterModelPrefab;
+        public Material characterMaterial;
+
         [Header("Base Stats")]
         public int maxHealth = 100;
         public float moveSpeed = 5.0f;

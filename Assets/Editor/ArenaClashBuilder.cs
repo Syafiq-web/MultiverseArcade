@@ -53,6 +53,7 @@ namespace MultiverseArcade.EditorTools
         public static void BuildArenaClashInternal(bool interactive)
         {
             EnsureDirectories();
+            ArenaAssetSetup.ConfigureAllAssets();
 
             Debug.Log("[ArenaClashBuilder] === MEMULAI PEMBANGUNAN ARENA CLASH 3D (FASE 1-6 DEEP GAMEPLAY) ===");
 
@@ -298,6 +299,12 @@ namespace MultiverseArcade.EditorTools
             data.superSalvoCount = 5;
             data.superSalvoInterval = 0.08f;
 
+            // Visual & 3D Character Model Assets
+            data.portrait = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/portrait_blaze.png");
+            data.characterModelPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Games/Syafiq/Models/Characters/characterMedium.fbx");
+            Texture2D blazeSkin = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Games/Syafiq/Textures/Skins/skin_soldier.png");
+            data.characterMaterial = CreateURPMaterial("Mat_Hero_Blaze", new Color(0.85f, 0.95f, 1f), 0.5f, blazeSkin);
+
             EditorUtility.SetDirty(data);
             AssetDatabase.SaveAssets();
             return data;
@@ -335,6 +342,12 @@ namespace MultiverseArcade.EditorTools
             data.slamRadius = 6.0f;
             data.slamDamage = 25;
             data.slamStunDuration = 1.0f;
+
+            // Visual & 3D Character Model Assets
+            data.portrait = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/portrait_bulwark.png");
+            data.characterModelPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Games/Syafiq/Models/Characters/advancedCharacter.fbx");
+            Texture2D bulwarkSkin = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Games/Syafiq/Textures/Skins/skin_robot.png");
+            data.characterMaterial = CreateURPMaterial("Mat_Hero_Bulwark", new Color(1f, 0.85f, 0.65f), 0.5f, bulwarkSkin);
 
             EditorUtility.SetDirty(data);
             AssetDatabase.SaveAssets();
@@ -716,8 +729,45 @@ namespace MultiverseArcade.EditorTools
             int playerLayer = LayerMask.NameToLayer("Syafiq_Player");
             if (playerLayer >= 0) player.layer = playerLayer;
 
-            Material playerMat = CreateURPMaterial("Mat_Player_Blue", new Color(0f, 0.85f, 1f), 0.7f);
-            player.GetComponent<Renderer>().sharedMaterial = playerMat;
+            // Sembunyikan mesh capsule primitif, sisakan CapsuleCollider untuk collision / hit detection
+            MeshRenderer mr = player.GetComponent<MeshRenderer>();
+            if (mr != null) mr.enabled = false;
+
+            // Model 3D Karakter
+            bool isBulwark = (heroData != null && heroData.heroId == "bulwark");
+            string modelPath = isBulwark ?
+                "Assets/Games/Syafiq/Models/Characters/advancedCharacter.fbx" :
+                "Assets/Games/Syafiq/Models/Characters/characterMedium.fbx";
+
+            string skinTexPath = isBulwark ?
+                "Assets/Games/Syafiq/Textures/Skins/skin_robot.png" :
+                "Assets/Games/Syafiq/Textures/Skins/skin_soldier.png";
+
+            Texture2D skinTex = AssetDatabase.LoadAssetAtPath<Texture2D>(skinTexPath);
+            Material playerMat = CreateURPMaterial(isBulwark ? "Mat_Hero_Bulwark" : "Mat_Hero_Blaze", new Color(0.9f, 0.95f, 1f), 0.6f, skinTex);
+
+            GameObject fbxAsset = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            if (fbxAsset != null)
+            {
+                GameObject visual = Object.Instantiate(fbxAsset, player.transform);
+                visual.name = "Visual";
+                visual.transform.localPosition = new Vector3(0, -1.0f, 0); // Kaki menapak di tanah
+                visual.transform.localRotation = Quaternion.identity;
+                visual.transform.localScale = isBulwark ? new Vector3(1.25f, 1.15f, 1.25f) : new Vector3(1.0f, 1.0f, 1.0f);
+
+                foreach (var rend in visual.GetComponentsInChildren<Renderer>())
+                {
+                    rend.sharedMaterial = playerMat;
+                }
+
+                foreach (var col in visual.GetComponentsInChildren<Collider>())
+                {
+                    Object.DestroyImmediate(col);
+                }
+            }
+
+            // Procedural Movement Visuals & Damage Flash
+            player.AddComponent<CharacterVisualController>();
 
             // Rigidbody non-kinematic (Fase 6 GDD)
             Rigidbody rb = player.GetComponent<Rigidbody>();
@@ -738,10 +788,18 @@ namespace MultiverseArcade.EditorTools
             PlayerController pc = player.AddComponent<PlayerController>();
             pc.SetHeroData(heroData);
 
-            // FirePoint
+            // FirePoint & Weapon Blaster Visual
             GameObject firePt = new GameObject("FirePoint");
             firePt.transform.parent = player.transform;
-            firePt.transform.localPosition = new Vector3(0, 0.5f, 0.8f);
+            firePt.transform.localPosition = new Vector3(0.25f, 0.35f, 0.75f);
+
+            GameObject gunVisual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            gunVisual.name = "Weapon_Blaster_Visual";
+            gunVisual.transform.parent = firePt.transform;
+            gunVisual.transform.localPosition = Vector3.zero;
+            gunVisual.transform.localScale = isBulwark ? new Vector3(0.18f, 0.22f, 0.5f) : new Vector3(0.1f, 0.14f, 0.4f);
+            Object.DestroyImmediate(gunVisual.GetComponent<Collider>());
+            gunVisual.GetComponent<Renderer>().sharedMaterial = CreateURPMaterial("Mat_Weapon_Blaster", new Color(0.15f, 0.22f, 0.35f), 0.85f);
 
             // Combat
             PlayerCombat combat = player.AddComponent<PlayerCombat>();
@@ -775,8 +833,54 @@ namespace MultiverseArcade.EditorTools
             int botLayer = teamId == 0 ? LayerMask.NameToLayer("Syafiq_Player") : LayerMask.NameToLayer("Syafiq_Enemy");
             if (botLayer >= 0) bot.layer = botLayer;
 
-            Material botMat = CreateURPMaterial($"Mat_{name}", teamColor, 0.6f);
-            bot.GetComponent<Renderer>().sharedMaterial = botMat;
+            // Sembunyikan mesh capsule primitif
+            MeshRenderer mr = bot.GetComponent<MeshRenderer>();
+            if (mr != null) mr.enabled = false;
+
+            // Model 3D Karakter & Material
+            bool isBulwark = (heroData != null && heroData.heroId == "bulwark");
+            string modelPath = isBulwark ?
+                "Assets/Games/Syafiq/Models/Characters/advancedCharacter.fbx" :
+                "Assets/Games/Syafiq/Models/Characters/characterMedium.fbx";
+
+            string skinTexPath;
+            if (teamId == 0)
+            {
+                skinTexPath = isBulwark ?
+                    "Assets/Games/Syafiq/Textures/Skins/skin_robot.png" :
+                    "Assets/Games/Syafiq/Textures/Skins/cyborgFemaleA.png";
+            }
+            else
+            {
+                skinTexPath = isBulwark ?
+                    "Assets/Games/Syafiq/Textures/Skins/skin_orc.png" :
+                    "Assets/Games/Syafiq/Textures/Skins/criminalMaleA.png";
+            }
+
+            Texture2D skinTex = AssetDatabase.LoadAssetAtPath<Texture2D>(skinTexPath);
+            Material botMat = CreateURPMaterial($"Mat_{name}", teamColor, 0.6f, skinTex);
+
+            GameObject fbxAsset = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            if (fbxAsset != null)
+            {
+                GameObject visual = Object.Instantiate(fbxAsset, bot.transform);
+                visual.name = "Visual";
+                visual.transform.localPosition = new Vector3(0, -1.0f, 0);
+                visual.transform.localRotation = Quaternion.identity;
+                visual.transform.localScale = isBulwark ? new Vector3(1.25f, 1.15f, 1.25f) : new Vector3(1.0f, 1.0f, 1.0f);
+
+                foreach (var rend in visual.GetComponentsInChildren<Renderer>())
+                {
+                    rend.sharedMaterial = botMat;
+                }
+
+                foreach (var col in visual.GetComponentsInChildren<Collider>())
+                {
+                    Object.DestroyImmediate(col);
+                }
+            }
+
+            bot.AddComponent<CharacterVisualController>();
 
             // NavMeshAgent
             NavMeshAgent agent = bot.AddComponent<NavMeshAgent>();
@@ -791,10 +895,18 @@ namespace MultiverseArcade.EditorTools
             // Fase 6: StatusEffectController
             StatusEffectController sec = bot.AddComponent<StatusEffectController>();
 
-            // FirePoint
+            // FirePoint & Weapon Blaster Visual
             GameObject firePt = new GameObject("FirePoint");
             firePt.transform.parent = bot.transform;
-            firePt.transform.localPosition = new Vector3(0, 0.5f, 0.8f);
+            firePt.transform.localPosition = new Vector3(0.25f, 0.35f, 0.75f);
+
+            GameObject gunVisual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            gunVisual.name = "Bot_Weapon_Visual";
+            gunVisual.transform.parent = firePt.transform;
+            gunVisual.transform.localPosition = Vector3.zero;
+            gunVisual.transform.localScale = isBulwark ? new Vector3(0.18f, 0.22f, 0.5f) : new Vector3(0.1f, 0.14f, 0.4f);
+            Object.DestroyImmediate(gunVisual.GetComponent<Collider>());
+            gunVisual.GetComponent<Renderer>().sharedMaterial = CreateURPMaterial("Mat_Weapon_Blaster", new Color(0.15f, 0.22f, 0.35f), 0.85f);
 
             // Components AI
             BotMovement movement = bot.AddComponent<BotMovement>();
@@ -879,6 +991,24 @@ namespace MultiverseArcade.EditorTools
             SO_Hero heroBlaze, SO_Hero heroBulwark,
             SO_BotDifficulty diffEasy, SO_BotDifficulty diffNormal, SO_BotDifficulty diffHard)
         {
+            // Load Sprites
+            Sprite glassTabSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/glassPanel_tab.png");
+            Sprite glassPanelSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/glassPanel.png");
+            Sprite glassCornersSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/glassPanel_corners.png");
+            Sprite barGreenSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/barHorizontal_green_mid.png");
+            Sprite barRedSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/barHorizontal_red_mid.png");
+            Sprite barYellowSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/barHorizontal_yellow_mid.png");
+            Sprite barShadowSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/barHorizontal_shadow_mid.png");
+            Sprite portraitBlazeSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/portrait_blaze.png");
+            Sprite portraitBulwarkSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/portrait_bulwark.png");
+            Sprite reticleSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/reticle_arcade.png");
+            Sprite dotBlueSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/dotBlue.png");
+            Sprite dotRedSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/dotRed.png");
+            Sprite dotYellowSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/dotYellow.png");
+            Sprite squareBlueSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/squareBlue.png");
+            Sprite blueBtnSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/blue_button00.png");
+            Sprite greenBtnSpr = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Games/Syafiq/UI/Sprites/green_button00.png");
+
             // 1. Arena HUD Canvas (Sorting Order 100)
             GameObject canvasGo = new GameObject("ArenaGameCanvas");
             Canvas canvas = canvasGo.AddComponent<Canvas>();
@@ -892,25 +1022,36 @@ namespace MultiverseArcade.EditorTools
 
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            // Top Score & Timer Banner
+            // Top Score & Timer Banner (Stylized Tab)
             GameObject topBanner = new GameObject("TopScoreBanner");
             topBanner.transform.SetParent(canvasGo.transform, false);
             RectTransform bannerRt = topBanner.AddComponent<RectTransform>();
             bannerRt.anchoredPosition = new Vector2(0, 480);
-            bannerRt.sizeDelta = new Vector2(600, 70);
+            bannerRt.sizeDelta = new Vector2(640, 75);
 
             Image bannerBg = topBanner.AddComponent<Image>();
-            bannerBg.color = new Color(0.06f, 0.08f, 0.14f, 0.9f);
+            if (glassTabSpr != null)
+            {
+                bannerBg.sprite = glassTabSpr;
+                bannerBg.type = Image.Type.Sliced;
+            }
+            bannerBg.color = new Color(0.04f, 0.07f, 0.14f, 0.95f);
             bannerBg.raycastTarget = false;
 
-            TextMeshProUGUI blueScoreTxt = CreateTextTMP(topBanner.transform, "BlueScore", "0", 38,
-                new Vector2(-160, 0), new Vector2(100, 60), new Color(0f, 0.9f, 1f), FontStyles.Bold, TextAlignmentOptions.Center);
+            TextMeshProUGUI blueScoreTxt = CreateTextTMP(topBanner.transform, "BlueScore", "0", 42,
+                new Vector2(-180, 0), new Vector2(110, 60), new Color(0f, 0.9f, 1f), FontStyles.Bold, TextAlignmentOptions.Center);
 
-            TextMeshProUGUI timerTxt = CreateTextTMP(topBanner.transform, "Timer", "03:00", 32,
-                new Vector2(0, 0), new Vector2(160, 60), Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
+            CreateTextTMP(topBanner.transform, "VSEmblem", "VS", 18,
+                new Vector2(-60, 0), new Vector2(40, 40), new Color(0.7f, 0.85f, 1f, 0.7f), FontStyles.Bold, TextAlignmentOptions.Center);
 
-            TextMeshProUGUI redScoreTxt = CreateTextTMP(topBanner.transform, "RedScore", "0", 38,
-                new Vector2(160, 0), new Vector2(100, 60), new Color(1f, 0.3f, 0.3f), FontStyles.Bold, TextAlignmentOptions.Center);
+            TextMeshProUGUI timerTxt = CreateTextTMP(topBanner.transform, "Timer", "03:00", 34,
+                new Vector2(0, 0), new Vector2(140, 60), Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
+
+            CreateTextTMP(topBanner.transform, "VSEmblem2", "VS", 18,
+                new Vector2(60, 0), new Vector2(40, 40), new Color(1f, 0.6f, 0.6f, 0.7f), FontStyles.Bold, TextAlignmentOptions.Center);
+
+            TextMeshProUGUI redScoreTxt = CreateTextTMP(topBanner.transform, "RedScore", "0", 42,
+                new Vector2(180, 0), new Vector2(110, 60), new Color(1f, 0.3f, 0.3f), FontStyles.Bold, TextAlignmentOptions.Center);
 
             // Countdown Banner (Center Screen)
             GameObject countdownGo = new GameObject("CountdownBanner");
@@ -919,38 +1060,69 @@ namespace MultiverseArcade.EditorTools
             cdRt.anchoredPosition = new Vector2(0, 80);
             cdRt.sizeDelta = new Vector2(500, 150);
 
-            TextMeshProUGUI countdownTxt = CreateTextTMP(countdownGo.transform, "CountdownText", "3", 84,
+            TextMeshProUGUI countdownTxt = CreateTextTMP(countdownGo.transform, "CountdownText", "3", 88,
                 Vector2.zero, new Vector2(500, 150), new Color(0f, 1f, 0.95f), FontStyles.Bold, TextAlignmentOptions.Center);
 
             // Player HUD (Bottom Left)
             GameObject playerHudGo = new GameObject("PlayerHUD");
             playerHudGo.transform.SetParent(canvasGo.transform, false);
             RectTransform pHudRt = playerHudGo.AddComponent<RectTransform>();
-            pHudRt.anchoredPosition = new Vector2(-640, -450);
-            pHudRt.sizeDelta = new Vector2(400, 120);
+            pHudRt.anchoredPosition = new Vector2(-610, -440);
+            pHudRt.sizeDelta = new Vector2(460, 130);
 
             Image pHudBg = playerHudGo.AddComponent<Image>();
-            pHudBg.color = new Color(0.06f, 0.08f, 0.14f, 0.85f);
+            if (glassPanelSpr != null)
+            {
+                pHudBg.sprite = glassPanelSpr;
+                pHudBg.type = Image.Type.Sliced;
+            }
+            pHudBg.color = new Color(0.04f, 0.07f, 0.14f, 0.94f);
             pHudBg.raycastTarget = false;
 
+            // Avatar Frame & Image
+            GameObject avatarFrame = new GameObject("AvatarFrame");
+            avatarFrame.transform.SetParent(playerHudGo.transform, false);
+            RectTransform afRt = avatarFrame.AddComponent<RectTransform>();
+            afRt.anchoredPosition = new Vector2(-165, 0);
+            afRt.sizeDelta = new Vector2(80, 80);
+            Image afImg = avatarFrame.AddComponent<Image>();
+            if (squareBlueSpr != null) afImg.sprite = squareBlueSpr;
+            afImg.color = new Color(0f, 0.85f, 1f, 0.9f);
+            afImg.raycastTarget = false;
+
+            GameObject avatarGo = new GameObject("AvatarImage");
+            avatarGo.transform.SetParent(avatarFrame.transform, false);
+            RectTransform avRt = avatarGo.AddComponent<RectTransform>();
+            avRt.anchorMin = Vector2.zero;
+            avRt.anchorMax = Vector2.one;
+            avRt.sizeDelta = new Vector2(-6, -6);
+            Image avatarImg = avatarGo.AddComponent<Image>();
+            avatarImg.sprite = portraitBlazeSpr;
+            avatarImg.preserveAspect = true;
+            avatarImg.raycastTarget = false;
+
+            // Hero Label
             TextMeshProUGUI heroLabel = CreateTextTMP(playerHudGo.transform, "PlayerLabel", "BLAZE (YOU)", 16,
-                new Vector2(-15, 38), new Vector2(340, 26), new Color(0f, 1f, 0.9f), FontStyles.Bold, TextAlignmentOptions.Left);
+                new Vector2(45, 40), new Vector2(280, 24), new Color(0f, 1f, 0.9f), FontStyles.Bold, TextAlignmentOptions.Left);
 
-            Slider hpSlider = CreateProgressBar(playerHudGo.transform, "PlayerHPSlider", new Vector2(-15, 12), new Vector2(340, 20), new Color(0f, 0.85f, 0.4f));
+            // Dual HP Bar: Red Ghost Trail Slider behind Green Slider
+            Slider hpGhostSlider = CreateProgressBar(playerHudGo.transform, "PlayerHPGhostSlider", new Vector2(45, 14), new Vector2(280, 20), new Color(1f, 0.25f, 0.2f, 0.85f), barRedSpr, barShadowSpr);
+            Slider hpSlider = CreateProgressBar(playerHudGo.transform, "PlayerHPSlider", new Vector2(45, 14), new Vector2(280, 20), new Color(0.1f, 0.95f, 0.45f), barGreenSpr, null);
+
             TextMeshProUGUI hpTxt = CreateTextTMP(playerHudGo.transform, "HPText", "100 / 100 HP", 13,
-                new Vector2(-15, 12), new Vector2(340, 20), Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
+                new Vector2(45, 14), new Vector2(280, 20), Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
 
-            // Fase 6: Super Meter Bar & Ready Banner
-            Slider superSlider = CreateProgressBar(playerHudGo.transform, "SuperMeterSlider", new Vector2(-15, -16), new Vector2(340, 18), new Color(1f, 0.85f, 0.1f));
+            // Super Meter Bar
+            Slider superSlider = CreateProgressBar(playerHudGo.transform, "SuperMeterSlider", new Vector2(45, -14), new Vector2(280, 18), new Color(1f, 0.85f, 0.1f), barYellowSpr, barShadowSpr);
             TextMeshProUGUI superTxt = CreateTextTMP(playerHudGo.transform, "SuperText", "SUPER: 0%", 13,
-                new Vector2(-15, -16), new Vector2(340, 18), Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
+                new Vector2(45, -14), new Vector2(280, 18), Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
 
-            // Fase 6: Skill Cooldown Icon (Space)
+            // Skill Cooldown Icon (Space)
             GameObject skillIconGo = new GameObject("SkillIcon");
             skillIconGo.transform.SetParent(playerHudGo.transform, false);
             RectTransform skillRt = skillIconGo.AddComponent<RectTransform>();
-            skillRt.anchoredPosition = new Vector2(-15, -42);
-            skillRt.sizeDelta = new Vector2(340, 20);
+            skillRt.anchoredPosition = new Vector2(45, -40);
+            skillRt.sizeDelta = new Vector2(280, 20);
 
             GameObject skillFillGo = new GameObject("SkillCooldownFill");
             skillFillGo.transform.SetParent(skillIconGo.transform, false);
@@ -966,15 +1138,54 @@ namespace MultiverseArcade.EditorTools
             sfRt.anchorMax = Vector2.one;
             sfRt.sizeDelta = Vector2.zero;
 
-            TextMeshProUGUI skillKeyTxt = CreateTextTMP(skillIconGo.transform, "SkillKeyText", "SKILL READY (SPACE)", 12,
-                Vector2.zero, new Vector2(340, 20), new Color(0.85f, 0.95f, 1f), FontStyles.Bold, TextAlignmentOptions.Center);
+            TextMeshProUGUI skillKeyTxt = CreateTextTMP(skillIconGo.transform, "SkillKeyText", "SPACE (READY)", 12,
+                Vector2.zero, new Vector2(280, 20), new Color(0.85f, 0.95f, 1f), FontStyles.Bold, TextAlignmentOptions.Center);
 
-            // Kill Feed Container (Top Right)
+            // Minimap Radar Container (Top Right)
+            GameObject radarGo = new GameObject("MinimapRadarContainer");
+            radarGo.transform.SetParent(canvasGo.transform, false);
+            RectTransform radarRt = radarGo.AddComponent<RectTransform>();
+            radarRt.anchoredPosition = new Vector2(760, 280);
+            radarRt.sizeDelta = new Vector2(170, 170);
+
+            Image radarBg = radarGo.AddComponent<Image>();
+            if (glassCornersSpr != null)
+            {
+                radarBg.sprite = glassCornersSpr;
+                radarBg.type = Image.Type.Sliced;
+            }
+            radarBg.color = new Color(0.04f, 0.08f, 0.16f, 0.88f);
+            radarBg.raycastTarget = false;
+
+            CreateTextTMP(radarGo.transform, "RadarLabel", "RADAR 30x30", 11, new Vector2(0, 72), new Vector2(150, 18), new Color(0f, 1f, 0.9f, 0.8f), FontStyles.Bold, TextAlignmentOptions.Center);
+
+            GameObject radarBlipsGo = new GameObject("RadarBlips");
+            radarBlipsGo.transform.SetParent(radarGo.transform, false);
+            RectTransform rblipsRt = radarBlipsGo.AddComponent<RectTransform>();
+            rblipsRt.anchorMin = Vector2.zero;
+            rblipsRt.anchorMax = Vector2.one;
+            rblipsRt.sizeDelta = Vector2.zero;
+
+            MinimapRadarUI radarUI = radarGo.AddComponent<MinimapRadarUI>();
+            SetPrivateField(radarUI, "_radarContainer", rblipsRt);
+            radarUI.Setup(null, squareBlueSpr, dotBlueSpr, dotRedSpr, dotYellowSpr);
+
+            // Aim Reticle Cursor (Screen Space)
+            GameObject reticleGo = new GameObject("AimReticle");
+            reticleGo.transform.SetParent(canvasGo.transform, false);
+            RectTransform reticleRt = reticleGo.AddComponent<RectTransform>();
+            reticleRt.sizeDelta = new Vector2(44, 44);
+            Image reticleImg = reticleGo.AddComponent<Image>();
+            reticleImg.sprite = reticleSpr;
+            reticleImg.color = new Color(0f, 1f, 0.95f, 0.85f);
+            reticleImg.raycastTarget = false;
+
+            // Kill Feed Container (Top Right under Pause Button)
             GameObject killFeedGo = new GameObject("KillFeedContainer");
             killFeedGo.transform.SetParent(canvasGo.transform, false);
             RectTransform kfRt = killFeedGo.AddComponent<RectTransform>();
-            kfRt.anchoredPosition = new Vector2(660, 380);
-            kfRt.sizeDelta = new Vector2(340, 260);
+            kfRt.anchoredPosition = new Vector2(500, 450);
+            kfRt.sizeDelta = new Vector2(320, 200);
 
             GameObject kfItemPrefab = CreateKillFeedItemPrefab(canvasGo.transform);
             KillFeedUI kfUI = canvasGo.AddComponent<KillFeedUI>();
@@ -987,17 +1198,18 @@ namespace MultiverseArcade.EditorTools
             // ArenaHUD Component
             ArenaHUD hud = canvasGo.AddComponent<ArenaHUD>();
             hud.BindControls(blueScoreTxt, redScoreTxt, timerTxt, countdownGo, countdownTxt, hpSlider, hpTxt, dmgNumPrefab, dmgNumContainer.transform);
+            hud.BindAvatarAndGhost(avatarImg, hpGhostSlider, reticleRt);
             hud.BindSkillAndSuperControls(skillFillImg, skillKeyTxt, superSlider, superTxt, heroLabel);
 
             // Result Panel
-            BuildResultPanel(canvasGo.transform);
+            BuildResultPanel(canvasGo.transform, glassPanelSpr, blueBtnSpr, greenBtnSpr);
 
             // Tombol Pause di pojok kanan atas ArenaGameCanvas
             Button pauseBtn = CreateCyberButton(canvasGo.transform, "Btn_Pause", "PAUSE (Esc)",
-                new Vector2(760, 460), new Vector2(170, 42), new Color(0.2f, 0.35f, 0.5f, 0.9f));
+                new Vector2(760, 460), new Vector2(170, 42), new Color(0.2f, 0.35f, 0.5f, 0.9f), blueBtnSpr);
 
             // Fase 6: Modal Pemilihan Hero & Kesulitan Bot (Muncul sebelum match)
-            HeroSelectionUI heroSelectionUI = BuildHeroSelectionModal(canvasGo.transform, heroBlaze, heroBulwark, diffEasy, diffNormal, diffHard);
+            HeroSelectionUI heroSelectionUI = BuildHeroSelectionModal(canvasGo.transform, heroBlaze, heroBulwark, diffEasy, diffNormal, diffHard, glassPanelSpr, portraitBlazeSpr, portraitBulwarkSpr, greenBtnSpr);
 
             // Sambungkan HeroSelectionUI dan HUD ke ArenaMatchManager
             if (matchMgr != null)
@@ -1011,7 +1223,8 @@ namespace MultiverseArcade.EditorTools
 
         private static HeroSelectionUI BuildHeroSelectionModal(Transform parent,
             SO_Hero heroBlaze, SO_Hero heroBulwark,
-            SO_BotDifficulty diffEasy, SO_BotDifficulty diffNormal, SO_BotDifficulty diffHard)
+            SO_BotDifficulty diffEasy, SO_BotDifficulty diffNormal, SO_BotDifficulty diffHard,
+            Sprite glassPanelSpr, Sprite portraitBlazeSpr, Sprite portraitBulwarkSpr, Sprite startBtnSpr)
         {
             GameObject modalGo = new GameObject("HeroSelectionModal");
             modalGo.transform.SetParent(parent, false);
@@ -1022,41 +1235,62 @@ namespace MultiverseArcade.EditorTools
 
             // Background peredam
             Image dimImg = modalGo.AddComponent<Image>();
-            dimImg.color = new Color(0.03f, 0.05f, 0.09f, 0.96f);
+            dimImg.color = new Color(0.02f, 0.04f, 0.08f, 0.96f);
             dimImg.raycastTarget = true;
 
             // Window Panel
             GameObject winGo = new GameObject("SelectionWindow");
             winGo.transform.SetParent(modalGo.transform, false);
             RectTransform wRt = winGo.AddComponent<RectTransform>();
-            wRt.sizeDelta = new Vector2(880, 600);
+            wRt.sizeDelta = new Vector2(920, 620);
 
             Image winBg = winGo.AddComponent<Image>();
-            winBg.color = new Color(0.07f, 0.10f, 0.16f, 0.98f);
+            if (glassPanelSpr != null)
+            {
+                winBg.sprite = glassPanelSpr;
+                winBg.type = Image.Type.Sliced;
+            }
+            winBg.color = new Color(0.06f, 0.09f, 0.16f, 0.98f);
             winBg.raycastTarget = false;
 
             // Header Titles
-            CreateTextTMP(winGo.transform, "HeaderTitle", "ARENA CLASH 3D", 44,
-                new Vector2(0, 240), new Vector2(700, 60), new Color(0f, 1f, 0.9f), FontStyles.Bold, TextAlignmentOptions.Center);
-            CreateTextTMP(winGo.transform, "HeaderSub", "SELECT YOUR OPERATIVE & COMBAT DIFFICULTY", 16,
-                new Vector2(0, 195), new Vector2(700, 30), new Color(0.7f, 0.85f, 1f, 0.8f), FontStyles.Normal, TextAlignmentOptions.Center);
+            CreateTextTMP(winGo.transform, "HeaderTitle", "ARENA CLASH 3D", 46,
+                new Vector2(0, 250), new Vector2(700, 60), new Color(0f, 1f, 0.9f), FontStyles.Bold, TextAlignmentOptions.Center);
+            CreateTextTMP(winGo.transform, "HeaderSub", "SELECT YOUR HERO & COMBAT DIFFICULTY", 16,
+                new Vector2(0, 205), new Vector2(700, 30), new Color(0.7f, 0.85f, 1f, 0.8f), FontStyles.Normal, TextAlignmentOptions.Center);
 
             // Card 1: Blaze
             GameObject blazeCard = new GameObject("Card_Blaze");
             blazeCard.transform.SetParent(winGo.transform, false);
             RectTransform bcRt = blazeCard.AddComponent<RectTransform>();
-            bcRt.anchoredPosition = new Vector2(-190, 40);
-            bcRt.sizeDelta = new Vector2(340, 240);
+            bcRt.anchoredPosition = new Vector2(-205, 45);
+            bcRt.sizeDelta = new Vector2(370, 250);
 
             Image bcBg = blazeCard.AddComponent<Image>();
-            bcBg.color = new Color(0.10f, 0.16f, 0.26f, 0.95f);
+            if (glassPanelSpr != null)
+            {
+                bcBg.sprite = glassPanelSpr;
+                bcBg.type = Image.Type.Sliced;
+            }
+            bcBg.color = new Color(0.08f, 0.14f, 0.24f, 0.95f);
             bcBg.raycastTarget = true;
             Button blazeBtn = blazeCard.AddComponent<Button>();
 
-            CreateTextTMP(blazeCard.transform, "BlazeTitle", "BLAZE", 26, new Vector2(0, 80), new Vector2(300, 35), new Color(0f, 0.9f, 1f), FontStyles.Bold, TextAlignmentOptions.Center);
-            CreateTextTMP(blazeCard.transform, "BlazeRole", "BALANCED GUNNER", 14, new Vector2(0, 55), new Vector2(300, 25), Color.white, FontStyles.Normal, TextAlignmentOptions.Center);
+            // Blaze Avatar Image
+            GameObject bAvGo = new GameObject("BlazeAvatar");
+            bAvGo.transform.SetParent(blazeCard.transform, false);
+            RectTransform bavRt = bAvGo.AddComponent<RectTransform>();
+            bavRt.anchoredPosition = new Vector2(-115, 20);
+            bavRt.sizeDelta = new Vector2(85, 85);
+            Image bavImg = bAvGo.AddComponent<Image>();
+            bavImg.sprite = portraitBlazeSpr;
+            bavImg.preserveAspect = true;
+            bavImg.raycastTarget = false;
+
+            CreateTextTMP(blazeCard.transform, "BlazeTitle", "BLAZE", 26, new Vector2(40, 80), new Vector2(200, 35), new Color(0f, 0.9f, 1f), FontStyles.Bold, TextAlignmentOptions.Left);
+            CreateTextTMP(blazeCard.transform, "BlazeRole", "AGILE GUNNER", 13, new Vector2(40, 55), new Vector2(200, 22), new Color(0.85f, 0.95f, 1f), FontStyles.Normal, TextAlignmentOptions.Left);
             string blazeStats = "• HP: 100  |  Speed: 5.0 u/s\n• Blaster: 20 dmg (0.4s interval)\n• Skill: Tactical Dash (4u, cd 6s)\n• Super: Salvo 5 Burst (E)";
-            CreateTextTMP(blazeCard.transform, "BlazeStats", blazeStats, 13, new Vector2(0, -20), new Vector2(300, 110), new Color(0.8f, 0.9f, 1f), FontStyles.Normal, TextAlignmentOptions.Left);
+            CreateTextTMP(blazeCard.transform, "BlazeStats", blazeStats, 13, new Vector2(0, -45), new Vector2(330, 95), new Color(0.8f, 0.9f, 1f), FontStyles.Normal, TextAlignmentOptions.Left);
 
             // Highlight border Blaze
             GameObject blazeHlGo = new GameObject("BlazeHighlight");
@@ -1073,18 +1307,34 @@ namespace MultiverseArcade.EditorTools
             GameObject bulwarkCard = new GameObject("Card_Bulwark");
             bulwarkCard.transform.SetParent(winGo.transform, false);
             RectTransform bulRt = bulwarkCard.AddComponent<RectTransform>();
-            bulRt.anchoredPosition = new Vector2(190, 40);
-            bulRt.sizeDelta = new Vector2(340, 240);
+            bulRt.anchoredPosition = new Vector2(205, 45);
+            bulRt.sizeDelta = new Vector2(370, 250);
 
             Image bulBg = bulwarkCard.AddComponent<Image>();
+            if (glassPanelSpr != null)
+            {
+                bulBg.sprite = glassPanelSpr;
+                bulBg.type = Image.Type.Sliced;
+            }
             bulBg.color = new Color(0.18f, 0.12f, 0.08f, 0.95f);
             bulBg.raycastTarget = true;
             Button bulwarkBtn = bulwarkCard.AddComponent<Button>();
 
-            CreateTextTMP(bulwarkCard.transform, "BulwarkTitle", "BULWARK", 26, new Vector2(0, 80), new Vector2(300, 35), new Color(1f, 0.65f, 0.2f), FontStyles.Bold, TextAlignmentOptions.Center);
-            CreateTextTMP(bulwarkCard.transform, "BulwarkRole", "HEAVY TANK", 14, new Vector2(0, 55), new Vector2(300, 25), Color.white, FontStyles.Normal, TextAlignmentOptions.Center);
+            // Bulwark Avatar Image
+            GameObject bulAvGo = new GameObject("BulwarkAvatar");
+            bulAvGo.transform.SetParent(bulwarkCard.transform, false);
+            RectTransform bulavRt = bulAvGo.AddComponent<RectTransform>();
+            bulavRt.anchoredPosition = new Vector2(-115, 20);
+            bulavRt.sizeDelta = new Vector2(85, 85);
+            Image bulavImg = bulAvGo.AddComponent<Image>();
+            bulavImg.sprite = portraitBulwarkSpr;
+            bulavImg.preserveAspect = true;
+            bulavImg.raycastTarget = false;
+
+            CreateTextTMP(bulwarkCard.transform, "BulwarkTitle", "BULWARK", 26, new Vector2(40, 80), new Vector2(200, 35), new Color(1f, 0.65f, 0.2f), FontStyles.Bold, TextAlignmentOptions.Left);
+            CreateTextTMP(bulwarkCard.transform, "BulwarkRole", "HEAVY TANK", 13, new Vector2(40, 55), new Vector2(200, 22), new Color(1f, 0.85f, 0.7f), FontStyles.Normal, TextAlignmentOptions.Left);
             string bulwarkStats = "• HP: 160  |  Speed: 3.8 u/s\n• Shotgun: 3 x 8 dmg (spread 20°)\n• Skill: Shield (-60% dmg 2s, cd 10s)\n• Super: Ground Slam Stun (6u, E)";
-            CreateTextTMP(bulwarkCard.transform, "BulwarkStats", bulwarkStats, 13, new Vector2(0, -20), new Vector2(300, 110), new Color(1f, 0.9f, 0.8f), FontStyles.Normal, TextAlignmentOptions.Left);
+            CreateTextTMP(bulwarkCard.transform, "BulwarkStats", bulwarkStats, 13, new Vector2(0, -45), new Vector2(330, 95), new Color(1f, 0.9f, 0.8f), FontStyles.Normal, TextAlignmentOptions.Left);
 
             // Highlight border Bulwark
             GameObject bulwarkHlGo = new GameObject("BulwarkHighlight");
@@ -1098,14 +1348,14 @@ namespace MultiverseArcade.EditorTools
             bulhlRt.sizeDelta = new Vector2(6, 6);
 
             // Difficulty Buttons
-            CreateTextTMP(winGo.transform, "DiffLabel", "AI DIFFICULTY:", 15, new Vector2(-260, -130), new Vector2(160, 30), Color.white, FontStyles.Bold, TextAlignmentOptions.Left);
+            CreateTextTMP(winGo.transform, "DiffLabel", "AI DIFFICULTY:", 15, new Vector2(-260, -125), new Vector2(160, 30), Color.white, FontStyles.Bold, TextAlignmentOptions.Left);
 
-            Button easyBtn = CreateCyberButton(winGo.transform, "Btn_Diff_Easy", "EASY", new Vector2(-110, -130), new Vector2(110, 36), new Color(0.2f, 0.3f, 0.4f));
-            Button normalBtn = CreateCyberButton(winGo.transform, "Btn_Diff_Normal", "NORMAL", new Vector2(20, -130), new Vector2(110, 36), new Color(0f, 0.7f, 0.65f));
-            Button hardBtn = CreateCyberButton(winGo.transform, "Btn_Diff_Hard", "HARD", new Vector2(150, -130), new Vector2(110, 36), new Color(0.2f, 0.3f, 0.4f));
+            Button easyBtn = CreateCyberButton(winGo.transform, "Btn_Diff_Easy", "EASY", new Vector2(-110, -125), new Vector2(110, 36), new Color(0.2f, 0.3f, 0.4f));
+            Button normalBtn = CreateCyberButton(winGo.transform, "Btn_Diff_Normal", "NORMAL", new Vector2(20, -125), new Vector2(110, 36), new Color(0f, 0.7f, 0.65f));
+            Button hardBtn = CreateCyberButton(winGo.transform, "Btn_Diff_Hard", "HARD", new Vector2(150, -125), new Vector2(110, 36), new Color(0.2f, 0.3f, 0.4f));
 
             // Start Battle Button
-            Button startBtn = CreateCyberButton(winGo.transform, "Btn_StartBattle", "START BATTLE", new Vector2(0, -210), new Vector2(360, 56), new Color(0f, 0.8f, 0.7f));
+            Button startBtn = CreateCyberButton(winGo.transform, "Btn_StartBattle", "START BATTLE ⚔️", new Vector2(0, -210), new Vector2(380, 58), new Color(0f, 0.85f, 0.7f), startBtnSpr);
 
             HeroSelectionUI selUI = modalGo.AddComponent<HeroSelectionUI>();
             selUI.BindControls(heroBlaze, heroBulwark, diffEasy, diffNormal, diffHard,
@@ -1126,45 +1376,49 @@ namespace MultiverseArcade.EditorTools
             rt.sizeDelta = new Vector2(320, 32);
 
             Image bg = item.AddComponent<Image>();
-            bg.color = new Color(0.05f, 0.08f, 0.12f, 0.8f);
+            bg.color = new Color(0.04f, 0.07f, 0.12f, 0.85f);
             bg.raycastTarget = false;
 
-            CreateTextTMP(item.transform, "Text", "Blaze  ➜  Red Bot", 14,
-                Vector2.zero, new Vector2(300, 30), Color.white, FontStyles.Bold, TextAlignmentOptions.Right);
+            TextMeshProUGUI txt = CreateTextTMP(item.transform, "KillText", "BLUE BOT eliminated RED BOT", 13,
+                Vector2.zero, new Vector2(300, 30), Color.white, FontStyles.Normal, TextAlignmentOptions.Left);
 
-            item.SetActive(false);
             return item;
         }
 
-        private static void BuildResultPanel(Transform parent)
+        private static void BuildResultPanel(Transform parent, Sprite glassPanelSpr = null, Sprite blueBtnSpr = null, Sprite greenBtnSpr = null)
         {
             GameObject panel = new GameObject("ResultPanel");
             panel.transform.SetParent(parent, false);
             RectTransform rt = panel.AddComponent<RectTransform>();
             rt.anchoredPosition = Vector2.zero;
-            rt.sizeDelta = new Vector2(760, 520);
+            rt.sizeDelta = new Vector2(780, 530);
 
             Image bg = panel.AddComponent<Image>();
-            bg.color = new Color(0.05f, 0.08f, 0.14f, 0.98f);
+            if (glassPanelSpr != null)
+            {
+                bg.sprite = glassPanelSpr;
+                bg.type = Image.Type.Sliced;
+            }
+            bg.color = new Color(0.04f, 0.07f, 0.14f, 0.98f);
             bg.raycastTarget = false;
 
-            TextMeshProUGUI titleTxt = CreateTextTMP(panel.transform, "Title", "VICTORY!", 58,
-                new Vector2(0, 160), new Vector2(600, 80), new Color(0f, 1f, 0.95f), FontStyles.Bold, TextAlignmentOptions.Center);
+            TextMeshProUGUI titleTxt = CreateTextTMP(panel.transform, "Title", "VICTORY!", 60,
+                new Vector2(0, 165), new Vector2(600, 80), new Color(0f, 1f, 0.95f), FontStyles.Bold, TextAlignmentOptions.Center);
 
-            TextMeshProUGUI scoreTxt = CreateTextTMP(panel.transform, "Score", "BLUE 10 — 4 RED", 32,
-                new Vector2(0, 70), new Vector2(600, 50), Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
+            TextMeshProUGUI scoreTxt = CreateTextTMP(panel.transform, "Score", "BLUE 10 — 4 RED", 34,
+                new Vector2(0, 75), new Vector2(600, 50), Color.white, FontStyles.Bold, TextAlignmentOptions.Center);
 
-            TextMeshProUGUI statsTxt = CreateTextTMP(panel.transform, "Stats", "Target Eliminasi: 10  |  Format 3v3", 18,
-                new Vector2(0, 10), new Vector2(600, 40), new Color(0.7f, 0.85f, 1f, 0.85f), FontStyles.Normal, TextAlignmentOptions.Center);
+            TextMeshProUGUI statsTxt = CreateTextTMP(panel.transform, "Stats", "Target Eliminasi: 10  |  Format 3v3 Team Battle", 18,
+                new Vector2(0, 15), new Vector2(600, 40), new Color(0.7f, 0.85f, 1f, 0.85f), FontStyles.Normal, TextAlignmentOptions.Center);
 
-            Button rematchBtn = CreateCyberButton(panel.transform, "Btn_Rematch", "REMATCH",
-                new Vector2(0, -70), new Vector2(300, 55), new Color(0f, 0.7f, 0.65f));
+            Button rematchBtn = CreateCyberButton(panel.transform, "Btn_Rematch", "PLAY AGAIN",
+                new Vector2(0, -65), new Vector2(320, 56), new Color(0f, 0.75f, 0.7f), greenBtnSpr);
 
-            Button switchBtn = CreateCyberButton(panel.transform, "Btn_SwitchGame", "SWITCH GAME",
-                new Vector2(0, -140), new Vector2(300, 50), new Color(0.35f, 0.25f, 0.55f));
+            Button switchBtn = CreateCyberButton(panel.transform, "Btn_SwitchGame", "ARCADE HUB",
+                new Vector2(0, -135), new Vector2(320, 50), new Color(0.3f, 0.35f, 0.55f), blueBtnSpr);
 
-            ResultPanelUI resultUI = panel.AddComponent<ResultPanelUI>();
-            resultUI.BindControls(titleTxt, scoreTxt, statsTxt, rematchBtn, switchBtn);
+            ResultPanelUI resUI = panel.AddComponent<ResultPanelUI>();
+            resUI.BindControls(titleTxt, scoreTxt, statsTxt, rematchBtn, switchBtn);
         }
 
         private static void BuildDedicatedPauseCanvas(Button pauseBtn)
@@ -1704,20 +1958,25 @@ namespace MultiverseArcade.EditorTools
             return tmp;
         }
 
-        private static Button CreateCyberButton(Transform parent, string name, string label, Vector2 pos, Vector2 size, Color btnColor)
+        private static Button CreateCyberButton(Transform parent, string name, string label, Vector2 pos, Vector2 size, Color btnColor, Sprite btnSprite = null)
         {
             GameObject btnGo = new GameObject(name);
             btnGo.transform.SetParent(parent, false);
             Image img = btnGo.AddComponent<Image>();
+            if (btnSprite != null)
+            {
+                img.sprite = btnSprite;
+                img.type = Image.Type.Sliced;
+            }
             img.color = btnColor;
             img.raycastTarget = true;
 
             Button btn = btnGo.AddComponent<Button>();
             ColorBlock cb = btn.colors;
-            cb.normalColor = btnColor;
-            cb.highlightedColor = btnColor * 1.25f;
-            cb.pressedColor = btnColor * 0.8f;
-            cb.disabledColor = new Color(0.2f, 0.2f, 0.25f, 0.5f);
+            cb.normalColor = Color.white;
+            cb.highlightedColor = new Color(1.15f, 1.15f, 1.15f);
+            cb.pressedColor = new Color(0.85f, 0.85f, 0.85f);
+            cb.disabledColor = new Color(0.3f, 0.3f, 0.35f, 0.5f);
             btn.colors = cb;
 
             RectTransform rt = btnGo.GetComponent<RectTransform>();
@@ -1728,7 +1987,7 @@ namespace MultiverseArcade.EditorTools
             return btn;
         }
 
-        private static Slider CreateProgressBar(Transform parent, string name, Vector2 pos, Vector2 size, Color fillColor)
+        private static Slider CreateProgressBar(Transform parent, string name, Vector2 pos, Vector2 size, Color fillColor, Sprite fillSprite = null, Sprite bgSprite = null)
         {
             GameObject sliderGo = new GameObject(name);
             sliderGo.transform.SetParent(parent, false);
@@ -1744,7 +2003,16 @@ namespace MultiverseArcade.EditorTools
             GameObject bg = new GameObject("Background");
             bg.transform.SetParent(sliderGo.transform, false);
             Image bgImg = bg.AddComponent<Image>();
-            bgImg.color = new Color(0.1f, 0.12f, 0.18f, 0.9f);
+            if (bgSprite != null)
+            {
+                bgImg.sprite = bgSprite;
+                bgImg.type = Image.Type.Sliced;
+                bgImg.color = new Color(0.12f, 0.16f, 0.24f, 0.95f);
+            }
+            else
+            {
+                bgImg.color = new Color(0.08f, 0.10f, 0.16f, 0.9f);
+            }
             bgImg.raycastTarget = false;
             RectTransform bgRt = bg.GetComponent<RectTransform>();
             bgRt.anchorMin = Vector2.zero;
@@ -1763,6 +2031,11 @@ namespace MultiverseArcade.EditorTools
             GameObject fill = new GameObject("Fill");
             fill.transform.SetParent(fillArea.transform, false);
             Image fillImg = fill.AddComponent<Image>();
+            if (fillSprite != null)
+            {
+                fillImg.sprite = fillSprite;
+                fillImg.type = Image.Type.Sliced;
+            }
             fillImg.color = fillColor;
             fillImg.raycastTarget = false;
             RectTransform fillRt = fill.GetComponent<RectTransform>();
@@ -1775,7 +2048,7 @@ namespace MultiverseArcade.EditorTools
             return slider;
         }
 
-        private static Material CreateURPMaterial(string name, Color color, float smoothness = 0.5f)
+        private static Material CreateURPMaterial(string name, Color color, float smoothness = 0.5f, Texture2D mainTex = null)
         {
             string matPath = $"{MAT_DIR}/{name}.mat";
             Material mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
@@ -1785,12 +2058,24 @@ namespace MultiverseArcade.EditorTools
                 if (shader == null) shader = Shader.Find("Standard");
                 mat = new Material(shader);
                 mat.color = color;
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
                 if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", smoothness);
+                if (mainTex != null)
+                {
+                    mat.mainTexture = mainTex;
+                    if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", mainTex);
+                }
                 AssetDatabase.CreateAsset(mat, matPath);
             }
             else
             {
                 mat.color = color;
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+                if (mainTex != null)
+                {
+                    mat.mainTexture = mainTex;
+                    if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", mainTex);
+                }
             }
             return mat;
         }

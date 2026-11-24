@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc9c3c88d9623804c92b70ed01f14151, type: 3}
+  m_Name: Hero_Blaze
+  m_EditorClassIdentifier: 
+  heroId: blaze
+  heroName: Blaze
+  role: Gunner Seimbang
+  description: Hero penembak seimbang dengan mobilitas tinggi dan salvo burst.
+  heroColor: {r: 0, g: 0.85, b: 1, a: 1}
+  portrait: {fileID: 21300000, guid: 3941b6d637ecfae4dbf9b53557faa8c9, type: 3}
+  characterModelPrefab: {fileID: 919132149155446097, guid: 47f6996af6a4728449b821fba1a36171,
+    type: 3}
+  characterMaterial: {fileID: 2100000, guid: 340f8a5f47202dd40be1f83754131c2f, type: 2}
+  maxHealth: 100
+  moveSpeed: 5
+  projectileData: {fileID: 11400000, guid: 00e539594cd5d474c8cc5ee44f99fe48, type: 2}
+  fireInterval: 0.4
+  projectilesPerShot: 1
+  spreadAngle: 0
+  skillType: 0
+  skillName: Tactical Dash
+  skillCooldown: 6
+  dashDistance: 4
+  shieldDuration: 2
+  shieldDamageReduction: 0.6
+  superType: 0
+  superName: Salvo Burst
+  superSalvoCount: 5
+  superSalvoInterval: 0.08
+  slamRadius: 6
+  slamDamage: 25
+  slamStunDuration: 1

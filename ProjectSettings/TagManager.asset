@@ -15,11 +15,11 @@ TagManager:
   - Syafiq_Enemy
   - Syafiq_Projectile
   - Syafiq_Wall
+  - Syafiq_Player
+  - Syafiq_Enemy
+  - Syafiq_Projectile
+  - Syafiq_Wall
   - Syafiq_Ground
-  - 
-  - 
-  - 
-  - 
   - 
   - 
   - 

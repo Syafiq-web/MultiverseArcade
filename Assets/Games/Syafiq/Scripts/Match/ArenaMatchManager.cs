@@ -148,6 +148,10 @@ namespace MultiverseArcade.Syafiq
                 if (_hud != null)
                 {
                     _hud.SetHeroLabel(_currentHero.heroName);
+                    if (_currentHero.portrait != null)
+                    {
+                        _hud.SetHeroAvatar(_currentHero.portrait);
+                    }
                 }
             }
 

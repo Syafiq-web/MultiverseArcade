@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fc9c3c88d9623804c92b70ed01f14151, type: 3}
+  m_Name: Hero_Bulwark
+  m_EditorClassIdentifier: 
+  heroId: bulwark
+  heroName: Bulwark
+  role: Heavy Tank
+  description: Hero tank bertubuh besar dengan shotgun mematikan, perisai peredam
+    damage, dan hentakan stun area.
+  heroColor: {r: 0.95, g: 0.55, b: 0.1, a: 1}
+  portrait: {fileID: 21300000, guid: 1d08e50d9411cba4cbaadba0eaf19c3e, type: 3}
+  characterModelPrefab: {fileID: 919132149155446097, guid: d63907d7d7177d4418687a2c4212ea51,
+    type: 3}
+  characterMaterial: {fileID: 2100000, guid: eb95b13121525b848898b93d3a413d35, type: 2}
+  maxHealth: 160
+  moveSpeed: 3.8
+  projectileData: {fileID: 11400000, guid: 557d39069a417014c90f59c9776e01c8, type: 2}
+  fireInterval: 0.8
+  projectilesPerShot: 3
+  spreadAngle: 20
+  skillType: 1
+  skillName: Energy Shield
+  skillCooldown: 10
+  dashDistance: 4
+  shieldDuration: 2
+  shieldDamageReduction: 0.6
+  superType: 1
+  superName: Ground Slam
+  superSalvoCount: 5
+  superSalvoInterval: 0.08
+  slamRadius: 6
+  slamDamage: 25
+  slamStunDuration: 1

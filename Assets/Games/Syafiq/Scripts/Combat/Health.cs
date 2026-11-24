@@ -40,6 +40,9 @@ namespace MultiverseArcade.Syafiq
         public int CurrentHealth => _currentHealth;
         public bool IsDead => _isDead;
 
+        public event Action<int, Health> OnDamageTaken;
+        public event Action<Health> OnDied;
+
         private void Awake()
         {
             _currentHealth = _maxHealth;
@@ -94,6 +97,9 @@ namespace MultiverseArcade.Syafiq
             // Trigger floating damage number
             ArenaEvents.RaiseDamageDealt(info.hitPoint != Vector3.zero ? info.hitPoint : transform.position + Vector3.up, actualDmg, info.isCritical);
             ArenaEvents.RaiseHealthChanged(this, _currentHealth, _maxHealth);
+
+            Health attackerHealth = info.attacker != null ? info.attacker.GetComponent<Health>() : null;
+            OnDamageTaken?.Invoke(actualDmg, attackerHealth);
 
             if (_currentHealth <= 0)
             {
@@ -152,6 +158,7 @@ namespace MultiverseArcade.Syafiq
             }
 
             ArenaEvents.RaiseCharacterDied(this, killerTeamId, killerName);
+            OnDied?.Invoke(this);
         }
 
         private void TriggerHitFlash()
