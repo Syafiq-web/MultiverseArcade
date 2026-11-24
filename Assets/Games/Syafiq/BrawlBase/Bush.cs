@@ -47,6 +47,7 @@ namespace MultiverseArcade.Syafiq.Brawl
         public void EnterBush(Bush b) { bushCount++; Refresh(); }
         public void ExitBush(Bush b)  { bushCount--; Refresh(); }
         public void RevealFor(float seconds) { revealUntil = Time.time + seconds; Refresh(); }
+        public void ResetBush() { bushCount = 0; revealUntil = 0; Refresh(); }
 
         void Update()
         {

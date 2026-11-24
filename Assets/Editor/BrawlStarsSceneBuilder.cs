@@ -24,9 +24,9 @@ namespace MultiverseArcade.EditorTools
         [InitializeOnLoadMethod]
         private static void AutoRunOnce()
         {
-            if (!EditorPrefs.GetBool("BrawlStars_GemGrab_AutoBuilt_v2", false))
+            if (!EditorPrefs.GetBool("BrawlStars_GemGrab_AutoBuilt_v3", false))
             {
-                EditorPrefs.SetBool("BrawlStars_GemGrab_AutoBuilt_v2", true);
+                EditorPrefs.SetBool("BrawlStars_GemGrab_AutoBuilt_v3", true);
                 EditorApplication.delayCall += () =>
                 {
                     BuildSceneInternal();
@@ -74,6 +74,7 @@ namespace MultiverseArcade.EditorTools
             Material bulletBlueMat = CreateURPMaterial("Mat_Brawl_BulletBlue", new Color(0f, 0.9f, 1f), 0.95f);
             Material bulletRedMat = CreateURPMaterial("Mat_Brawl_BulletRed", new Color(1f, 0.3f, 0.3f), 0.95f);
             Material aimMat = CreateURPMaterial("Mat_Brawl_Aim", new Color(1f, 0.35f, 0.15f, 0.75f), 0.1f);
+            Material shieldMat = CreateURPMaterial("Mat_Brawl_ShieldBubble", new Color(0.2f, 0.85f, 1f, 0.45f), 0.8f);
 
             // 2. Arena Root & Floor Plane
             GameObject arenaRoot = new GameObject("Arena_GemGrab_32x32");
@@ -91,15 +92,12 @@ namespace MultiverseArcade.EditorTools
             CreateWall(arenaRoot.transform, "Wall_West", new Vector3(-16f, 1.25f, 0), new Vector3(2, 2.5f, 32), wallMat);
 
             // 4. Rintangan Tembok & Peti Kayu Sesuai Layout Gem Grab
-            // Pilar Kiri & Kanan Tengah
             CreateWall(arenaRoot.transform, "Wall_CenterLeft", new Vector3(-4.5f, 1f, 0), new Vector3(1.6f, 2f, 4.5f), wallMat);
             CreateWall(arenaRoot.transform, "Wall_CenterRight", new Vector3(4.5f, 1f, 0), new Vector3(1.6f, 2f, 4.5f), wallMat);
 
-            // Peti Kayu di Atas & Bawah Tambang
             CreateWall(arenaRoot.transform, "Crate_CenterNorth", new Vector3(0, 0.75f, 3.5f), new Vector3(2.5f, 1.5f, 1.5f), crateMat);
             CreateWall(arenaRoot.transform, "Crate_CenterSouth", new Vector3(0, 0.75f, -3.5f), new Vector3(2.5f, 1.5f, 1.5f), crateMat);
 
-            // Flanks Luar
             CreateWall(arenaRoot.transform, "Wall_NW", new Vector3(-8.5f, 1f, 7.5f), new Vector3(3.5f, 2f, 1.5f), wallMat);
             CreateWall(arenaRoot.transform, "Wall_SE", new Vector3(8.5f, 1f, -7.5f), new Vector3(3.5f, 2f, 1.5f), wallMat);
             CreateWall(arenaRoot.transform, "Wall_NE", new Vector3(8.5f, 1f, 7.5f), new Vector3(3.5f, 2f, 1.5f), wallMat);
@@ -132,7 +130,47 @@ namespace MultiverseArcade.EditorTools
             GameObject managerGo = new GameObject("GemGrabManager");
             GemGrabManager gemManager = managerGo.AddComponent<GemGrabManager>();
 
-            // 9. UI Canvas Overlay
+            // 9. Titik Spawn Tim (Markas Blue & Red)
+            GameObject spawnsRoot = new GameObject("SpawnPoints");
+            spawnsRoot.transform.parent = arenaRoot.transform;
+
+            Transform[] blueSpawns = new Transform[3];
+            Vector3[] bluePositions = new Vector3[] {
+                new Vector3(-5f, 1.0f, -11f),
+                new Vector3(0f, 1.0f, -12f),
+                new Vector3(5f, 1.0f, -11f)
+            };
+            for (int i = 0; i < 3; i++)
+            {
+                GameObject p = new GameObject($"SpawnPoint_Blue_{i + 1}");
+                p.transform.parent = spawnsRoot.transform;
+                p.transform.position = bluePositions[i];
+                p.transform.rotation = Quaternion.Euler(0, 0, 0);
+                blueSpawns[i] = p.transform;
+            }
+
+            Transform[] redSpawns = new Transform[3];
+            Vector3[] redPositions = new Vector3[] {
+                new Vector3(-5f, 1.0f, 11f),
+                new Vector3(0f, 1.0f, 12f),
+                new Vector3(5f, 1.0f, 11f)
+            };
+            for (int i = 0; i < 3; i++)
+            {
+                GameObject p = new GameObject($"SpawnPoint_Red_{i + 1}");
+                p.transform.parent = spawnsRoot.transform;
+                p.transform.position = redPositions[i];
+                p.transform.rotation = Quaternion.Euler(0, 180, 0);
+                redSpawns[i] = p.transform;
+            }
+
+            GameObject rmGo = new GameObject("RespawnManager");
+            RespawnManager rm = rmGo.AddComponent<RespawnManager>();
+            var blueTeam = new RespawnManager.TeamSpawns { teamId = 0, points = blueSpawns };
+            var redTeam = new RespawnManager.TeamSpawns { teamId = 1, points = redSpawns };
+            rm.Setup(new RespawnManager.TeamSpawns[] { blueTeam, redTeam }, gemManager, 3f);
+
+            // 10. UI Canvas Overlay
             GameObject canvasGo = new GameObject("Canvas_BrawlHUD");
             Canvas canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -145,10 +183,10 @@ namespace MultiverseArcade.EditorTools
             VirtualJoystick leftStick = CreateVirtualJoystick(canvasGo.transform, "Joystick_Move", new Vector2(250, 250), new Color(0.1f, 0.55f, 0.95f, 0.5f), new Color(0.2f, 0.75f, 1f, 0.85f));
             VirtualJoystick rightStick = CreateVirtualJoystick(canvasGo.transform, "Joystick_Aim", new Vector2(-250, 250), new Color(0.95f, 0.35f, 0.15f, 0.5f), new Color(1f, 0.55f, 0.2f, 0.85f));
 
-            // 10. Player (Blue Team, teamId = 0)
+            // 11. Player (Blue Team, teamId = 0)
             GameObject playerGo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             playerGo.name = "Player_Brawler";
-            playerGo.transform.position = new Vector3(0, 1.0f, -10f); // Spawn Selatan
+            playerGo.transform.position = bluePositions[1]; // Spawn Selatan (Tengah)
             playerGo.layer = unitLayer;
 
             CharacterController cc = playerGo.AddComponent<CharacterController>();
@@ -203,20 +241,28 @@ namespace MultiverseArcade.EditorTools
             Hideable playerHide = playerGo.AddComponent<Hideable>();
             playerHide.Setup(true);
 
-            // 11. Bots (3v3 Match)
+            // Shield Bubble & Respawnable & HitFeedback
+            GameObject pShield = CreateShieldBubble(playerGo.transform, shieldMat);
+            Respawnable playerResp = playerGo.AddComponent<Respawnable>();
+            playerResp.Setup(pShield);
+
+            HitFeedback playerHit = playerGo.AddComponent<HitFeedback>();
+            playerHit.Setup(true);
+
+            // 12. Bots (3v3 Match)
             // Blue Teammates (teamId = 0)
-            CreateBotUnit("BlueBot_1", 0, new Vector3(-5f, 1.0f, -10f), unitLayer, unitMask, playerProjPrefab, gemPrefab, "skin_adventurer.png");
-            CreateBotUnit("BlueBot_2", 0, new Vector3(5f, 1.0f, -10f), unitLayer, unitMask, playerProjPrefab, gemPrefab, "cyborgFemaleA.png");
+            CreateBotUnit("BlueBot_1", 0, bluePositions[0], unitLayer, unitMask, playerProjPrefab, gemPrefab, shieldMat, "skin_adventurer.png");
+            CreateBotUnit("BlueBot_2", 0, bluePositions[2], unitLayer, unitMask, playerProjPrefab, gemPrefab, shieldMat, "cyborgFemaleA.png");
 
             // Red Enemies (teamId = 1)
-            CreateBotUnit("RedBot_1", 1, new Vector3(0f, 1.0f, 10f), unitLayer, unitMask, enemyProjPrefab, gemPrefab, "skin_robot.png");
-            CreateBotUnit("RedBot_2", 1, new Vector3(-5f, 1.0f, 10f), unitLayer, unitMask, enemyProjPrefab, gemPrefab, "criminalMaleA.png");
-            CreateBotUnit("RedBot_3", 1, new Vector3(5f, 1.0f, 10f), unitLayer, unitMask, enemyProjPrefab, gemPrefab, "skin_orc.png");
+            CreateBotUnit("RedBot_1", 1, redPositions[1], unitLayer, unitMask, enemyProjPrefab, gemPrefab, shieldMat, "skin_robot.png");
+            CreateBotUnit("RedBot_2", 1, redPositions[0], unitLayer, unitMask, enemyProjPrefab, gemPrefab, shieldMat, "criminalMaleA.png");
+            CreateBotUnit("RedBot_3", 1, redPositions[2], unitLayer, unitMask, enemyProjPrefab, gemPrefab, shieldMat, "skin_orc.png");
 
-            // 12. HUD UI Setup
-            CreateBrawlHUD(canvasGo.transform, ac, playerHp, playerCarrier, gemManager);
+            // 13. HUD UI Setup
+            CreateBrawlHUD(canvasGo.transform, ac, playerHp, playerCarrier, gemManager, playerResp);
 
-            // 13. CameraFollow
+            // 14. CameraFollow
             GameObject camGo = GameObject.FindWithTag("MainCamera");
             if (camGo == null)
             {
@@ -229,7 +275,7 @@ namespace MultiverseArcade.EditorTools
             if (camFollow == null) camFollow = camGo.AddComponent<CameraFollow>();
             camFollow.SetTarget(playerGo.transform, rightStick);
 
-            // 14. EventSystem
+            // 15. EventSystem
             if (Object.FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null)
             {
                 GameObject es = new GameObject("EventSystem");
@@ -237,7 +283,7 @@ namespace MultiverseArcade.EditorTools
                 es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
             }
 
-            // 15. Bake NavMeshSurface
+            // 16. Bake NavMeshSurface
             NavMeshSurface navSurface = arenaRoot.AddComponent<NavMeshSurface>();
             navSurface.collectObjects = CollectObjects.All;
             navSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
@@ -285,6 +331,19 @@ namespace MultiverseArcade.EditorTools
             return bushGo;
         }
 
+        private static GameObject CreateShieldBubble(Transform parent, Material mat)
+        {
+            GameObject shield = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            shield.name = "ShieldBubble_VFX";
+            shield.transform.parent = parent;
+            shield.transform.localPosition = Vector3.zero;
+            shield.transform.localScale = new Vector3(1.7f, 2.1f, 1.7f);
+            shield.GetComponent<Renderer>().sharedMaterial = mat;
+            Object.DestroyImmediate(shield.GetComponent<Collider>());
+            shield.SetActive(false);
+            return shield;
+        }
+
         private static Gem CreateGemPrefab(Material mat)
         {
             string path = $"{PREFAB_DIR}/PF_BrawlGem.prefab";
@@ -328,7 +387,7 @@ namespace MultiverseArcade.EditorTools
             return prefab.GetComponent<Projectile>();
         }
 
-        private static GameObject CreateBotUnit(string name, int teamId, Vector3 pos, int layer, LayerMask mask, Projectile proj, Gem gemPrefab, string skinName)
+        private static GameObject CreateBotUnit(string name, int teamId, Vector3 pos, int layer, LayerMask mask, Projectile proj, Gem gemPrefab, Material shieldMat, string skinName)
         {
             GameObject bot = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             bot.name = name;
@@ -377,6 +436,13 @@ namespace MultiverseArcade.EditorTools
             Hideable hide = bot.AddComponent<Hideable>();
             hide.Setup(false);
 
+            GameObject bShield = CreateShieldBubble(bot.transform, shieldMat);
+            Respawnable bResp = bot.AddComponent<Respawnable>();
+            bResp.Setup(bShield);
+
+            HitFeedback bHit = bot.AddComponent<HitFeedback>();
+            bHit.Setup(false);
+
             BotAI ai = bot.AddComponent<BotAI>();
             ai.Setup(proj, muzzleGo.transform, mask);
 
@@ -404,10 +470,10 @@ namespace MultiverseArcade.EditorTools
             }
         }
 
-        private static VirtualJoystick CreateVirtualJoystick(Transform parent, string name, Vector2 anchoredPos, Color bgColor, Color handleColor)
+        private static VirtualJoystick CreateVirtualJoystick(Transform canvasTrans, string name, Vector2 anchoredPos, Color bgColor, Color handleColor)
         {
             GameObject stickGo = new GameObject(name);
-            stickGo.transform.parent = parent;
+            stickGo.transform.parent = canvasTrans;
             RectTransform stickRt = stickGo.AddComponent<RectTransform>();
             stickRt.sizeDelta = new Vector2(180, 180);
 
@@ -439,7 +505,7 @@ namespace MultiverseArcade.EditorTools
             return vj;
         }
 
-        private static void CreateBrawlHUD(Transform canvasTrans, AimController ac, Health hp, GemCarrier carrier, GemGrabManager manager)
+        private static void CreateBrawlHUD(Transform canvasTrans, AimController ac, Health hp, GemCarrier carrier, GemGrabManager manager, Respawnable playerResp)
         {
             GameObject hudGo = new GameObject("BrawlHUD");
             hudGo.transform.parent = canvasTrans;
@@ -548,6 +614,30 @@ namespace MultiverseArcade.EditorTools
             etTxt.color = Color.white;
             etTxt.text = "VICTORY!";
 
+            // --- Respawn Banner ---
+            GameObject respBanner = new GameObject("RespawnBanner");
+            respBanner.transform.parent = hudGo.transform;
+            RectTransform respRt = respBanner.AddComponent<RectTransform>();
+            respRt.anchorMin = new Vector2(0.5f, 0.5f);
+            respRt.anchorMax = new Vector2(0.5f, 0.5f);
+            respRt.anchoredPosition = new Vector2(0, -60);
+            respRt.sizeDelta = new Vector2(400, 50);
+            Image respBg = respBanner.AddComponent<Image>();
+            respBg.color = new Color(0.1f, 0.1f, 0.15f, 0.85f);
+
+            GameObject respTxtGo = new GameObject("RespawnText");
+            respTxtGo.transform.parent = respBanner.transform;
+            RectTransform respTxtRt = respTxtGo.AddComponent<RectTransform>();
+            respTxtRt.sizeDelta = new Vector2(400, 50);
+            Text respTxt = respTxtGo.AddComponent<Text>();
+            respTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            respTxt.fontSize = 24;
+            respTxt.fontStyle = FontStyle.Bold;
+            respTxt.alignment = TextAnchor.MiddleCenter;
+            respTxt.color = new Color(1f, 0.85f, 0.2f);
+            respTxt.text = "RESPAWNING IN 3s";
+            respBanner.SetActive(false);
+
             // --- Bottom Center: Ammo & HP & Carried Gems ---
             GameObject bottomPanel = new GameObject("BottomPanel_Status");
             bottomPanel.transform.parent = hudGo.transform;
@@ -640,8 +730,10 @@ namespace MultiverseArcade.EditorTools
             SetPrivateField(hud, "countdownText", cdTxt);
             SetPrivateField(hud, "matchEndBanner", endBanner);
             SetPrivateField(hud, "matchEndTitle", etTxt);
+            SetPrivateField(hud, "respawnBanner", respBanner);
+            SetPrivateField(hud, "respawnLabel", respTxt);
 
-            hud.Bind(ac, hp, carrier, manager);
+            hud.Bind(ac, hp, carrier, manager, playerResp);
         }
 
         private static Material CreateURPMaterial(string name, Color color, float smoothness = 0.5f)

@@ -49,6 +49,7 @@ namespace MultiverseArcade.Syafiq.Brawl
         }
 
         public void AddKnockback(Vector3 force) => knockback += force;
+        public void ResetMotion() => knockback = Vector3.zero;
         public void SetMoveStick(VirtualJoystick stick) => moveStick = stick;
         public void SetModel(Transform visualModel) => model = visualModel;
     }

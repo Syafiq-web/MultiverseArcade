@@ -22,17 +22,23 @@ namespace MultiverseArcade.Syafiq.Brawl
         [SerializeField] private GameObject matchEndBanner;
         [SerializeField] private Text matchEndTitle;
 
+        [Header("Respawn Status")]
+        [SerializeField] private GameObject respawnBanner;
+        [SerializeField] private Text respawnLabel;
+
         private AimController aimCtrl;
         private Health playerHealth;
         private GemCarrier playerCarrier;
         private GemGrabManager gemManager;
+        private Respawnable playerRespawnable;
 
-        public void Bind(AimController aim, Health health, GemCarrier carrier, GemGrabManager manager)
+        public void Bind(AimController aim, Health health, GemCarrier carrier, GemGrabManager manager, Respawnable respawnable = null)
         {
             aimCtrl = aim;
             playerHealth = health;
             playerCarrier = carrier;
             gemManager = manager;
+            playerRespawnable = respawnable;
 
             if (playerHealth != null)
             {
@@ -53,8 +59,14 @@ namespace MultiverseArcade.Syafiq.Brawl
                 gemManager.OnMatchEnd += HandleMatchEnd;
             }
 
+            if (RespawnManager.Instance != null)
+            {
+                RespawnManager.Instance.OnRespawnTick += HandleRespawnTick;
+            }
+
             if (countdownBanner != null) countdownBanner.SetActive(false);
             if (matchEndBanner != null) matchEndBanner.SetActive(false);
+            if (respawnBanner != null) respawnBanner.SetActive(false);
         }
 
         private void OnDestroy()
@@ -66,6 +78,10 @@ namespace MultiverseArcade.Syafiq.Brawl
                 gemManager.OnGemsChanged -= HandleGemsChanged;
                 gemManager.OnCountdown -= HandleCountdown;
                 gemManager.OnMatchEnd -= HandleMatchEnd;
+            }
+            if (RespawnManager.Instance != null)
+            {
+                RespawnManager.Instance.OnRespawnTick -= HandleRespawnTick;
             }
         }
 
@@ -151,6 +167,18 @@ namespace MultiverseArcade.Syafiq.Brawl
                 {
                     matchEndTitle.text = playerWon ? "VICTORY!" : "DEFEAT";
                     matchEndTitle.color = playerWon ? new Color(0f, 1f, 0.5f) : new Color(1f, 0.25f, 0.25f);
+                }
+            }
+        }
+
+        private void HandleRespawnTick(Respawnable unit, float t)
+        {
+            if (unit == playerRespawnable)
+            {
+                if (respawnBanner != null) respawnBanner.SetActive(t > 0);
+                if (respawnLabel != null)
+                {
+                    respawnLabel.text = t > 0 ? $"RESPAWNING IN {Mathf.CeilToInt(t)}s" : "";
                 }
             }
         }

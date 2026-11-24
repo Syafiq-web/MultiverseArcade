@@ -3,11 +3,12 @@ using UnityEngine;
 
 namespace MultiverseArcade.Syafiq.Brawl
 {
-    // Pasang di player dan bot. Menyimpan jumlah gem + tim.
+    // Mengelola gem yang dibawa unit.
+    // Gem dijatuhkan lewat Health.OnDeath (bukan OnDestroy), mendukung sistem respawn.
+    [RequireComponent(typeof(Health))]
     public class GemCarrier : MonoBehaviour
     {
         public static readonly List<GemCarrier> All = new List<GemCarrier>();
-        static bool quitting;
 
         public int teamId;
         [SerializeField] Gem gemPrefab;
@@ -16,11 +17,21 @@ namespace MultiverseArcade.Syafiq.Brawl
         public int Gems { get; private set; }
         public event System.Action<GemCarrier> OnChanged;   // untuk update UI
 
-        void OnEnable()  => All.Add(this);
-        void OnDisable() => All.Remove(this);
-        void OnApplicationQuit() => quitting = true;
+        Health health;
 
-        public void SetGemPrefab(Gem prefab) => gemPrefab = prefab;
+        void Awake() => health = GetComponent<Health>();
+
+        void OnEnable()
+        {
+            All.Add(this);                     // unit mati (nonaktif) otomatis keluar dari daftar
+            if (health != null) health.OnDeath += HandleDeath;
+        }
+
+        void OnDisable()
+        {
+            All.Remove(this);
+            if (health != null) health.OnDeath -= HandleDeath;
+        }
 
         public void Add(int n)
         {
@@ -28,16 +39,28 @@ namespace MultiverseArcade.Syafiq.Brawl
             OnChanged?.Invoke(this);
         }
 
-        // Saat mati (Health.TakeDamage -> Destroy), semua gem tumpah
-        void OnDestroy()
+        public void Setup(Gem prefab, int team)
         {
-            if (quitting || !gameObject.scene.isLoaded || gemPrefab == null) return;
+            gemPrefab = prefab;
+            teamId = team;
+        }
 
-            for (int i = 0; i < Gems; i++)
+        public void SetGemPrefab(Gem prefab) => gemPrefab = prefab;
+
+        void HandleDeath(Health h)
+        {
+            if (gemPrefab != null)
             {
-                var g = Instantiate(gemPrefab, transform.position + Vector3.up * 0.5f, Quaternion.identity);
-                g.Pop(Random.insideUnitCircle.normalized * Random.Range(1.5f, dropForce));
+                for (int i = 0; i < Gems; i++)
+                {
+                    var g = Instantiate(gemPrefab, transform.position + Vector3.up * 0.5f, Quaternion.identity);
+                    Vector2 randDir = Random.insideUnitCircle.normalized;
+                    if (randDir.sqrMagnitude < 0.01f) randDir = Random.onUnitSphere;
+                    g.Pop(randDir * Random.Range(1.5f, dropForce));
+                }
             }
+            Gems = 0;
+            OnChanged?.Invoke(this);
         }
     }
 }

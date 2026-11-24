@@ -56,33 +56,4 @@ namespace MultiverseArcade.Syafiq.Brawl
             }
         }
     }
-
-    public class Health : MonoBehaviour
-    {
-        public int Max = 3200;
-        public int Current;
-
-        public System.Action<int, int> OnHealthChanged;
-        public System.Action OnDied;
-
-        void Awake() => Current = Max;
-
-        public void TakeDamage(int dmg)
-        {
-            Current -= dmg;
-            if (Current < 0) Current = 0;
-            OnHealthChanged?.Invoke(Current, Max);
-            if (Current <= 0)
-            {
-                OnDied?.Invoke();
-                Destroy(gameObject);
-            }
-        }
-
-        public void ResetHealth()
-        {
-            Current = Max;
-            OnHealthChanged?.Invoke(Current, Max);
-        }
-    }
 }
