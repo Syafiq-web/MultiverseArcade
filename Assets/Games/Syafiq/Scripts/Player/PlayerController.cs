@@ -124,7 +124,12 @@ namespace MultiverseArcade.Syafiq
 
             float speedMult = _statusEffects != null ? _statusEffects.MoveSpeedMultiplier : 1.0f;
             Vector3 targetVelocity = _moveInput * (_moveSpeed * speedMult);
-            _rb.velocity = new Vector3(targetVelocity.x, _rb.velocity.y, targetVelocity.z);
+
+            // Responsive acceleration & crisp braking curve
+            Vector3 currentPlanarVel = new Vector3(_rb.velocity.x, 0, _rb.velocity.z);
+            float accelRate = _moveInput.sqrMagnitude > 0.01f ? 45f : 65f;
+            Vector3 smoothPlanarVel = Vector3.MoveTowards(currentPlanarVel, targetVelocity, accelRate * Time.fixedDeltaTime);
+            _rb.velocity = new Vector3(smoothPlanarVel.x, _rb.velocity.y, smoothPlanarVel.z);
         }
 
         private void UpdateMouseAim()
@@ -142,7 +147,9 @@ namespace MultiverseArcade.Syafiq
                 if (lookDirection.sqrMagnitude > 0.01f)
                 {
                     AimDirection = lookDirection.normalized;
-                    transform.rotation = Quaternion.LookRotation(AimDirection);
+                    Quaternion targetRot = Quaternion.LookRotation(AimDirection);
+                    // Snappy 1440 deg/sec smooth rotation prevents 1-frame visual snapping
+                    transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, 1440f * Time.deltaTime);
                 }
 
                 if (_aimTargetTransform != null)

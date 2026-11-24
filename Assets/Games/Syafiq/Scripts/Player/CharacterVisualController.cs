@@ -28,6 +28,7 @@ namespace MultiverseArcade.Syafiq
         private Quaternion _originalLocalRot;
         private float _bobTimer = 0f;
         private float _currentTilt = 0f;
+        private float _recoilTilt = 0f;
         private Coroutine _flashRoutine;
 
         private void Awake()
@@ -94,13 +95,33 @@ namespace MultiverseArcade.Syafiq
                 _currentTilt = Mathf.Lerp(_currentTilt, 0f, Time.deltaTime * _tiltSmoothSpeed);
             }
 
-            _modelTransform.localRotation = _originalLocalRot * Quaternion.Euler(_currentTilt, 0, 0);
+            // Recoil recovery
+            if (_recoilTilt > 0.01f)
+            {
+                _recoilTilt = Mathf.Lerp(_recoilTilt, 0f, Time.deltaTime * 20f);
+            }
+
+            _modelTransform.localRotation = _originalLocalRot * Quaternion.Euler(_currentTilt - _recoilTilt, 0, 0);
+        }
+
+        /// <summary>
+        /// Efek hentakan recoil saat karakter menembak
+        /// </summary>
+        public void TriggerTorsoRecoil(float amount = 8f)
+        {
+            _recoilTilt = Mathf.Clamp(_recoilTilt + amount, 0f, 16f);
         }
 
         private void HandleDamageTaken(int damage, Health source)
         {
             if (_flashRoutine != null) StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(DamageFlashRoutine());
+
+            // Screen shake jika ini adalah pemain lokal
+            if (GetComponent<PlayerController>() != null && TopDownCamera.Instance != null)
+            {
+                TopDownCamera.Instance.TriggerShake(0.14f, 0.12f);
+            }
         }
 
         private IEnumerator DamageFlashRoutine()

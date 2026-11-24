@@ -18,6 +18,8 @@ namespace MultiverseArcade.Syafiq
     /// </summary>
     public class ArenaHUD : MonoBehaviour
     {
+        public static ArenaHUD Instance { get; private set; }
+
         [Header("Top Score & Timer Header")]
         [SerializeField] private TextMeshProUGUI _blueScoreText;
         [SerializeField] private TextMeshProUGUI _redScoreText;
@@ -51,6 +53,17 @@ namespace MultiverseArcade.Syafiq
         private float _targetHpValue = 100f;
         private float _currentHpValue = 100f;
         private float _ghostHpValue = 100f;
+        private float _aimReticleScale = 1f;
+
+        private void Awake()
+        {
+            Instance = this;
+        }
+
+        public void PulseReticle(float scale = 1.35f)
+        {
+            _aimReticleScale = scale;
+        }
 
         private void OnEnable()
         {
@@ -119,6 +132,12 @@ namespace MultiverseArcade.Syafiq
             {
                 Vector2 mousePos = Input.mousePosition;
                 _aimReticleRt.position = mousePos;
+
+                if (_aimReticleScale > 1f)
+                {
+                    _aimReticleScale = Mathf.Lerp(_aimReticleScale, 1f, Time.deltaTime * 14f);
+                }
+                _aimReticleRt.localScale = Vector3.one * _aimReticleScale;
             }
         }
 

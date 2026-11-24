@@ -23,12 +23,14 @@ namespace MultiverseArcade.Syafiq
 
         private Health _myHealth;
         private StatusEffectController _statusEffects;
+        private CharacterVisualController _visualCtrl;
         private float _cooldownTimer = 0f;
 
         private void Awake()
         {
             _myHealth = GetComponent<Health>();
             _statusEffects = GetComponent<StatusEffectController>();
+            _visualCtrl = GetComponent<CharacterVisualController>();
 
             if (_firePoint == null) _firePoint = transform;
             _cooldownTimer = Random.Range(0.2f, _fireInterval);
@@ -76,16 +78,17 @@ namespace MultiverseArcade.Syafiq
 
             _cooldownTimer = _fireInterval;
 
-            Vector3 baseDir = (targetPos - transform.position);
-            baseDir.y = 0f;
-            baseDir.Normalize();
+            Vector3 spawnPos = _firePoint != null ? _firePoint.position : transform.position + transform.forward * 0.8f + Vector3.up * 0.5f;
+
+            Vector3 toTarget = (targetPos - spawnPos);
+            toTarget.y = 0f;
+            Vector3 baseDir = toTarget.sqrMagnitude > 0.1f ? toTarget.normalized : transform.forward;
 
             // Berikan deviasi aim error
             float angleDev = Random.Range(-_aimErrorDegrees, _aimErrorDegrees);
             Quaternion rot = Quaternion.Euler(0, angleDev, 0);
             Vector3 finalDir = rot * baseDir;
 
-            Vector3 spawnPos = _firePoint != null ? _firePoint.position : transform.position + transform.forward * 0.8f + Vector3.up * 0.5f;
             int teamId = _myHealth != null ? _myHealth.TeamId : 1;
             float dmgMultiplier = _statusEffects != null ? _statusEffects.DamageDealtMultiplier : 1.0f;
 
@@ -109,6 +112,11 @@ namespace MultiverseArcade.Syafiq
                         ProjectilePool.Instance.SpawnProjectile(spawnPos, pelletDir, teamId, gameObject, _projectileData, dmgMultiplier);
                     }
                 }
+            }
+
+            if (_visualCtrl != null)
+            {
+                _visualCtrl.TriggerTorsoRecoil(6f);
             }
 
             PlayShootSound();

@@ -199,6 +199,11 @@ namespace MultiverseArcade.Syafiq
 
         private void ExecuteGroundSlam(float radius, int damage, float stunDuration)
         {
+            if (TopDownCamera.Instance != null)
+            {
+                TopDownCamera.Instance.TriggerShake(0.22f, 0.18f);
+            }
+
             Collider[] colliders = Physics.OverlapSphere(transform.position, radius);
             int myTeam = _health != null ? _health.TeamId : 0;
 

@@ -442,11 +442,11 @@ namespace MultiverseArcade.EditorTools
         {
             string path = $"{PREFAB_DIR}/PF_BlasterProjectile.prefab";
             GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (existing != null) return existing;
+            if (existing != null && existing.GetComponent<TrailRenderer>() != null) return existing;
 
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             go.name = "PF_BlasterProjectile";
-            go.transform.localScale = Vector3.one * 0.4f;
+            go.transform.localScale = Vector3.one * 0.35f;
 
             int projLayer = LayerMask.NameToLayer("Syafiq_Projectile");
             if (projLayer >= 0) go.layer = projLayer;
@@ -458,8 +458,15 @@ namespace MultiverseArcade.EditorTools
             rb.isKinematic = true;
             rb.useGravity = false;
 
-            Material mat = CreateURPMaterial("Mat_Projectile_Laser", new Color(0f, 1f, 0.9f), 0.9f);
+            Material mat = CreateLaserMaterial("Mat_Projectile_Laser", new Color(0f, 1f, 0.9f));
             go.GetComponent<Renderer>().sharedMaterial = mat;
+
+            TrailRenderer tr = go.AddComponent<TrailRenderer>();
+            tr.time = 0.075f;
+            tr.startWidth = 0.22f;
+            tr.endWidth = 0.02f;
+            tr.minVertexDistance = 0.1f;
+            tr.sharedMaterial = mat;
 
             go.AddComponent<Projectile>();
 
@@ -813,7 +820,7 @@ namespace MultiverseArcade.EditorTools
             // Aim Indicator
             AimIndicator ai = player.AddComponent<AimIndicator>();
             LineRenderer lr = player.GetComponent<LineRenderer>();
-            Material laserMat = CreateURPMaterial("Mat_Laser_Sight", new Color(0f, 1f, 0.9f), 0.8f);
+            Material laserMat = CreateLaserMaterial("Mat_Laser_Sight", new Color(0f, 1f, 0.9f));
             lr.sharedMaterial = laserMat;
             ai.Setup(pc, firePt.transform);
 
@@ -2076,6 +2083,31 @@ namespace MultiverseArcade.EditorTools
                     mat.mainTexture = mainTex;
                     if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", mainTex);
                 }
+            }
+            return mat;
+        }
+
+        private static Material CreateLaserMaterial(string name, Color color)
+        {
+            string matPath = $"{MAT_DIR}/{name}.mat";
+            Material mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+                         ?? Shader.Find("Sprites/Default")
+                         ?? Shader.Find("Universal Render Pipeline/Unlit");
+
+            if (mat == null)
+            {
+                mat = new Material(shader);
+                mat.color = color;
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+                AssetDatabase.CreateAsset(mat, matPath);
+            }
+            else
+            {
+                mat.shader = shader;
+                mat.color = color;
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+                EditorUtility.SetDirty(mat);
             }
             return mat;
         }
