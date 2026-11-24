@@ -260,7 +260,7 @@ namespace MultiverseArcade.Syafiq
             {
                 if (isReady)
                 {
-                    _superMeterText.text = "⚡ SUPER READY! [E] ⚡";
+                    _superMeterText.text = "SUPER READY [E]";
                     _superMeterText.color = new Color(1f, 0.9f, 0.1f);
                 }
                 else

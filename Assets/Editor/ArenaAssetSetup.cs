@@ -16,7 +16,7 @@ namespace MultiverseArcade.EditorTools
         private const string SKINS_DIR = "Assets/Games/Syafiq/Textures/Skins";
         private const string MODELS_DIR = "Assets/Games/Syafiq/Models/Characters";
 
-        [MenuItem("Tools/Multiverse Arcade/🎨 Configure Arena Clash Assets & Sprites", false, 10)]
+        [MenuItem("Tools/Multiverse Arcade/Configure Arena Clash Assets", false, 10)]
         public static void ConfigureAllAssets()
         {
             ConfigureUISprites();

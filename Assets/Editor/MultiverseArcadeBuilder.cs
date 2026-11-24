@@ -47,7 +47,7 @@ namespace MultiverseArcade.EditorTools
         private const string SCENE_BRILI = "Assets/Games/Brili/Scenes/Game_Brili.unity";
         private const string SCENE_RISA = "Assets/Games/Risa/Scenes/Game_Risa.unity";
 
-        [MenuItem("Tools/Multiverse Arcade/🚀 Build All Scenes (Auto Setup)", false, 0)]
+        [MenuItem("Tools/Multiverse Arcade/Build All Scenes", false, 0)]
         public static void BuildAllScenes()
         {
             BuildAllScenesInternal(true);
@@ -71,7 +71,7 @@ namespace MultiverseArcade.EditorTools
 
             // Buka kembali MainMenu sebagai scene aktif
             EditorSceneManager.OpenScene(SCENE_MAIN_MENU);
-            Debug.Log("[MultiverseArcadeBuilder] 🎉 SELURUH SCENE BERHASIL DIBANGUN & DIKONFIGURASI!");
+            Debug.Log("[MultiverseArcadeBuilder] SELURUH SCENE BERHASIL DIBANGUN & DIKONFIGURASI");
             if (showDialog)
             {
                 EditorUtility.DisplayDialog("Multiverse Arcade Builder", "Semua scene (MainMenu, GameSelection, Game_Syafiq, dan scene tim) berhasil dibangun & dikonfigurasi penuh!\n\nScene MainMenu sudah aktif dibuka dan siap di-Play.", "Mantap!");
@@ -145,7 +145,7 @@ namespace MultiverseArcade.EditorTools
             titleRect.sizeDelta = new Vector2(800, 100);
 
             // Subtitle
-            TextMeshProUGUI subtitle = CreateTMPText("SubtitleText", centerPanel.transform, "★ 5 GAMES • 1 EXPERIENCE • INFINITE ACTION ★", 20, FontStyles.Normal, new Color(1f, 0.85f, 0.3f));
+            TextMeshProUGUI subtitle = CreateTMPText("SubtitleText", centerPanel.transform, "5 GAMES - 1 EXPERIENCE - INFINITE ACTION", 20, FontStyles.Normal, new Color(1f, 0.85f, 0.3f));
             RectTransform subRect = subtitle.GetComponent<RectTransform>();
             subRect.anchoredPosition = new Vector2(0, 70);
             subRect.sizeDelta = new Vector2(800, 50);
@@ -279,7 +279,7 @@ namespace MultiverseArcade.EditorTools
             tbImg.color = themeColor;
 
             // Status Tag
-            string tagText = isPlayable ? "● READY TO PLAY" : "○ IN DEVELOPMENT";
+            string tagText = isPlayable ? "READY TO PLAY" : "IN DEVELOPMENT";
             Color tagColor = isPlayable ? new Color(0.2f, 0.9f, 0.4f) : new Color(0.8f, 0.8f, 0.8f);
             TextMeshProUGUI tag = CreateTMPText("Tag", card.transform, tagText, 12, FontStyles.Bold, tagColor);
             RectTransform tagRect = tag.GetComponent<RectTransform>();
@@ -306,7 +306,7 @@ namespace MultiverseArcade.EditorTools
             Image prImg = preview.AddComponent<Image>();
             prImg.color = new Color(themeColor.r * 0.25f, themeColor.g * 0.25f, themeColor.b * 0.25f, 0.8f);
 
-            TextMeshProUGUI iconTxt = CreateTMPText("Icon", preview.transform, isPlayable ? "⚡ ARENA 3D ⚡" : "🎮 ARCADE", 16, FontStyles.Bold, themeColor);
+            TextMeshProUGUI iconTxt = CreateTMPText("Icon", preview.transform, isPlayable ? "ARENA 3D" : "ARCADE", 16, FontStyles.Bold, themeColor);
             StretchFull(iconTxt.GetComponent<RectTransform>());
 
             // Description
@@ -376,7 +376,7 @@ namespace MultiverseArcade.EditorTools
             atr.anchoredPosition = new Vector2(0, 10);
             atr.sizeDelta = new Vector2(750, 80);
 
-            TextMeshProUGUI statusTxt = CreateTMPText("Status", canvasGo.transform, "⏳ GAME SEDANG DALAM PENGEMBANGAN ⏳\nTekan ESC atau tombol PAUSE untuk kembali", 24, FontStyles.Bold, new Color(1f, 0.85f, 0.3f));
+            TextMeshProUGUI statusTxt = CreateTMPText("Status", canvasGo.transform, "GAME SEDANG DALAM PENGEMBANGAN\nTekan ESC atau tombol PAUSE untuk kembali", 24, FontStyles.Bold, new Color(1f, 0.85f, 0.3f));
             RectTransform str = statusTxt.GetComponent<RectTransform>();
             str.anchoredPosition = new Vector2(0, -90);
             str.sizeDelta = new Vector2(750, 80);
@@ -545,19 +545,19 @@ namespace MultiverseArcade.EditorTools
             rect.offsetMax = Vector2.zero;
         }
 
-        [MenuItem("Tools/Multiverse Arcade/📂 Open MainMenu Scene", false, 20)]
+        [MenuItem("Tools/Multiverse Arcade/Open MainMenu Scene", false, 20)]
         public static void OpenMainMenu()
         {
             EditorSceneManager.OpenScene(SCENE_MAIN_MENU);
         }
 
-        [MenuItem("Tools/Multiverse Arcade/📂 Open Syafiq Game Scene", false, 21)]
+        [MenuItem("Tools/Multiverse Arcade/Open Syafiq Game Scene", false, 21)]
         public static void OpenSyafiqScene()
         {
             EditorSceneManager.OpenScene(SCENE_SYAFIQ);
         }
 
-        [MenuItem("Tools/Multiverse Arcade/📂 Open GameSelection Scene", false, 22)]
+        [MenuItem("Tools/Multiverse Arcade/Open GameSelection Scene", false, 22)]
         public static void OpenGameSelection()
         {
             EditorSceneManager.OpenScene(SCENE_GAME_SELECTION);

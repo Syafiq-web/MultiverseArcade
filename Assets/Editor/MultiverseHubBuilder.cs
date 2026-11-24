@@ -40,7 +40,7 @@ namespace MultiverseArcade.EditorTools
         private const string REGISTRY_PATH = "Assets/_Project/Data/GameRegistry.asset";
 
         [MenuItem("Multiverse/Build Hub", false, 0)]
-        [MenuItem("Tools/Multiverse Arcade/🚀 Build Hub (Full Setup)", false, 0)]
+        [MenuItem("Tools/Multiverse Arcade/Build Hub", false, 0)]
         public static void BuildHub()
         {
             BuildHubInternal(true);
@@ -54,7 +54,7 @@ namespace MultiverseArcade.EditorTools
         }
 
         [MenuItem("Multiverse/Validate Hub", false, 1)]
-        [MenuItem("Tools/Multiverse Arcade/🔍 Validate Hub & References", false, 1)]
+        [MenuItem("Tools/Multiverse Arcade/Validate Hub & References", false, 1)]
         public static void ValidateHub()
         {
             ValidateHubInternal(true);
@@ -343,7 +343,7 @@ namespace MultiverseArcade.EditorTools
                 new Vector2(0, 315), new Vector2(900, 40), new Color(0.7f, 0.85f, 1f, 0.8f), FontStyles.Normal, TextAlignmentOptions.Center);
 
             // Back Button
-            Button backBtn = CreateCyberButton(canvasGo.transform, "Btn_Back", "◄ MAIN MENU", new Vector2(-600, 350), new Vector2(200, 50), new Color(0.25f, 0.25f, 0.35f));
+            Button backBtn = CreateCyberButton(canvasGo.transform, "Btn_Back", "BACK TO MAIN MENU", new Vector2(-600, 350), new Vector2(200, 50), new Color(0.25f, 0.25f, 0.35f));
 
             // Cards Row
             GameObject cardsContainer = new GameObject("CardsContainer");

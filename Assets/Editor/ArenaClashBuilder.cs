@@ -37,7 +37,7 @@ namespace MultiverseArcade.EditorTools
         private const string MAT_DIR = "Assets/Games/Syafiq/Materials";
 
         [MenuItem("Multiverse/Build Arena Clash", false, 0)]
-        [MenuItem("Tools/Multiverse Arcade/⚔️ Build Arena Clash (Fase 1-6)", false, 0)]
+        [MenuItem("Tools/Multiverse Arcade/Build Arena Clash (Fase 1-6)", false, 0)]
         public static void BuildArenaClash()
         {
             BuildArenaClashInternal(true);
@@ -1355,7 +1355,7 @@ namespace MultiverseArcade.EditorTools
             Button hardBtn = CreateCyberButton(winGo.transform, "Btn_Diff_Hard", "HARD", new Vector2(150, -125), new Vector2(110, 36), new Color(0.2f, 0.3f, 0.4f));
 
             // Start Battle Button
-            Button startBtn = CreateCyberButton(winGo.transform, "Btn_StartBattle", "START BATTLE ⚔️", new Vector2(0, -210), new Vector2(380, 58), new Color(0f, 0.85f, 0.7f), startBtnSpr);
+            Button startBtn = CreateCyberButton(winGo.transform, "Btn_StartBattle", "START BATTLE", new Vector2(0, -210), new Vector2(380, 58), new Color(0f, 0.85f, 0.7f), startBtnSpr);
 
             HeroSelectionUI selUI = modalGo.AddComponent<HeroSelectionUI>();
             selUI.BindControls(heroBlaze, heroBulwark, diffEasy, diffNormal, diffHard,
@@ -1462,7 +1462,7 @@ namespace MultiverseArcade.EditorTools
 
         #region Bot Simulation Tool (Fase 6 Balance Verification)
         [MenuItem("Multiverse/Simulate Bot Match (Fase 6)", false, 2)]
-        [MenuItem("Tools/Multiverse Arcade/📊 Simulate Bot Match (Fase 6)", false, 2)]
+        [MenuItem("Tools/Multiverse Arcade/Simulate Bot Match (Fase 6)", false, 2)]
         public static void SimulateBotMatches()
         {
             Debug.Log("[ArenaClashBuilder] === MEMULAI SIMULASI 50 MATCH BOT-VS-BOT (FASE 6) ===");
@@ -1673,13 +1673,13 @@ namespace MultiverseArcade.EditorTools
                 $"## Ringkasan Eksekutif Simulasi (50 Match)\n\n" +
                 $"| Metrik | Hasil Simulasi | Target Desain GDD (50-60%) | Evaluasi |\n" +
                 $"|---|---|---|---|\n" +
-                $"| **Total Match** | {totalMatches} match | 50 match | ✅ Valid |\n" +
-                $"| **Blue Team Wins** | **{blueWins}** ({blueWinRate:F1}%) | 50.0% – 60.0% | **{(blueWinRate >= 50f && blueWinRate <= 60f ? "✅ SEIMBANG (Optimal)" : "⚠️ Cukup Seimbang")}** |\n" +
-                $"| **Red Team Wins** | **{redWins}** ({redWinRate:F1}%) | 40.0% – 50.0% | ✅ Kompetitif |\n" +
-                $"| **Draws (Seri)** | **{draws}** ({(float)draws / totalMatches * 100f:F1}%) | < 5% | ✅ Sesuai |\n" +
-                $"| **Rata-rata Durasi Match** | **{avgDuration:F1} detik** | 90s – 150s | ✅ Cepat & Tegang |\n" +
-                $"| **Rata-rata Skor Blue** | **{avgBlueKills:F1}** eliminasi | ~10 eliminasi | ✅ Konsisten |\n" +
-                $"| **Rata-rata Skor Red** | **{avgRedKills:F1}** eliminasi | ~8-9 eliminasi | ✅ Konsisten |\n\n" +
+                $"| **Total Match** | {totalMatches} match | 50 match | Valid |\n" +
+                $"| **Blue Team Wins** | **{blueWins}** ({blueWinRate:F1}%) | 50.0% – 60.0% | **{(blueWinRate >= 50f && blueWinRate <= 60f ? "[SEIMBANG - Optimal]" : "[Cukup Seimbang]")}** |\n" +
+                $"| **Red Team Wins** | **{redWins}** ({redWinRate:F1}%) | 40.0% – 50.0% | Kompetitif |\n" +
+                $"| **Draws (Seri)** | **{draws}** ({(float)draws / totalMatches * 100f:F1}%) | < 5% | Sesuai |\n" +
+                $"| **Rata-rata Durasi Match** | **{avgDuration:F1} detik** | 90s – 150s | Optimal |\n" +
+                $"| **Rata-rata Skor Blue** | **{avgBlueKills:F1}** eliminasi | ~10 eliminasi | Konsisten |\n" +
+                $"| **Rata-rata Skor Red** | **{avgRedKills:F1}** eliminasi | ~8-9 eliminasi | Konsisten |\n\n" +
                 $"---\n\n" +
                 $"## Analisis Efektivitas Hero & Mekanik Fase 6\n\n" +
                 $"### 1. Blaze (Balanced Gunner)\n" +
@@ -1714,7 +1714,7 @@ namespace MultiverseArcade.EditorTools
 
         #region Validation (EditMode & Batchmode Check)
         [MenuItem("Multiverse/Validate Arena Clash", false, 1)]
-        [MenuItem("Tools/Multiverse Arcade/🔍 Validate Arena Clash (EditMode)", false, 1)]
+        [MenuItem("Tools/Multiverse Arcade/Validate Arena Clash", false, 1)]
         public static bool ValidateArenaClash()
         {
             Debug.Log("[ArenaClashBuilder] === MEMULAI VALIDASI EDITMODE ARENA CLASH 3D (FASE 1-6) ===");

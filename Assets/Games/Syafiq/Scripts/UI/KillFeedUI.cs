@@ -45,7 +45,7 @@ namespace MultiverseArcade.Syafiq
                 string killerColorHex = killerTeamId == 0 ? "#00E5FF" : "#FF5252";
                 string victimColorHex = victim.TeamId == 0 ? "#00E5FF" : "#FF5252";
 
-                tmp.text = $"<color={killerColorHex}>{killerName}</color>  ➜  <color={victimColorHex}>{victim.CharacterName}</color>";
+                tmp.text = $"<color={killerColorHex}>{killerName}</color>  >  <color={victimColorHex}>{victim.CharacterName}</color>";
             }
 
             _activeEntries.Add(entry);
