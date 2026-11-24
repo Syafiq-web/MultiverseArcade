@@ -32,12 +32,20 @@ namespace MultiverseArcade.Syafiq.Brawl
 
         void OnTriggerEnter(Collider other)
         {
-            if (other.gameObject == owner || other.transform.IsChildOf(owner.transform)) return;
+            if (other.gameObject == owner || (owner != null && other.transform.IsChildOf(owner.transform))) return;
 
             // Dinding menghentikan peluru
             if (other.CompareTag("Wall"))
             {
                 Destroy(gameObject);
+                return;
+            }
+
+            // Jangan tembak teman satu tim (friendly fire check)
+            if (other.TryGetComponent(out GemCarrier target) &&
+                owner != null && owner.TryGetComponent(out GemCarrier shooter) &&
+                target.teamId == shooter.teamId)
+            {
                 return;
             }
 

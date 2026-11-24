@@ -3,6 +3,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
+using Unity.AI.Navigation;
 using MultiverseArcade.Syafiq.Brawl;
 
 namespace MultiverseArcade.EditorTools
@@ -13,11 +14,24 @@ namespace MultiverseArcade.EditorTools
         private const string PREFAB_DIR = "Assets/Games/Syafiq/Prefabs";
         private const string MAT_DIR = "Assets/Games/Syafiq/Materials";
 
-        [MenuItem("Tools/Multiverse Arcade/Brawl Stars/Build Brawl Stars Scene", false, 0)]
-        [MenuItem("Multiverse/Build Brawl Stars Scene", false, 1)]
+        [MenuItem("Tools/Multiverse Arcade/Brawl Stars/Build Gem Grab Scene (Full 3v3)", false, 0)]
+        [MenuItem("Multiverse/Build Gem Grab Scene", false, 1)]
         public static void BuildScene()
         {
             BuildSceneInternal();
+        }
+
+        [InitializeOnLoadMethod]
+        private static void AutoRunOnce()
+        {
+            if (!EditorPrefs.GetBool("BrawlStars_GemGrab_AutoBuilt_v2", false))
+            {
+                EditorPrefs.SetBool("BrawlStars_GemGrab_AutoBuilt_v2", true);
+                EditorApplication.delayCall += () =>
+                {
+                    BuildSceneInternal();
+                };
+            }
         }
 
         public static void BuildSceneFromCommandLine()
@@ -27,30 +41,42 @@ namespace MultiverseArcade.EditorTools
 
         private static void BuildSceneInternal()
         {
-            Debug.Log("[BrawlStarsSceneBuilder] === MEMULAI BUILD BRAWL STARS SCENE ===");
+            Debug.Log("[BrawlStarsSceneBuilder] === MEMULAI BUILD BRAWL STARS GEM GRAB (3v3) ===");
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // 1. Directional Light
+            // Layer setup
+            int unitLayer = LayerMask.NameToLayer("Unit");
+            if (unitLayer < 0) unitLayer = LayerMask.NameToLayer("Default");
+            LayerMask unitMask = (1 << unitLayer) | (1 << LayerMask.NameToLayer("Default"));
+
+            // 1. Directional Light (Cahaya matahari hangat khas Brawl Stars)
             GameObject lightGo = new GameObject("Directional Light");
             Light l = lightGo.AddComponent<Light>();
             l.type = LightType.Directional;
             l.color = new Color(1f, 0.96f, 0.88f);
-            l.intensity = 1.2f;
+            l.intensity = 1.25f;
             l.shadows = LightShadows.Soft;
             lightGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
-            // Materials
-            Material grassMat = CreateURPMaterial("Mat_Brawl_Grass", new Color(0.24f, 0.62f, 0.28f), 0.2f);
-            Material wallMat = CreateURPMaterial("Mat_Brawl_Wall", new Color(0.38f, 0.44f, 0.52f), 0.4f);
-            Material crateMat = CreateURPMaterial("Mat_Brawl_Crate", new Color(0.72f, 0.48f, 0.26f), 0.3f);
-            Material bushMat = CreateURPMaterial("Mat_Brawl_Bush", new Color(0.15f, 0.50f, 0.20f), 0.2f);
-            Material playerMat = CreateURPMaterial("Mat_Brawl_Player", new Color(0f, 0.75f, 1f), 0.5f);
-            Material enemyMat = CreateURPMaterial("Mat_Brawl_Enemy", new Color(1f, 0.28f, 0.28f), 0.5f);
-            Material bulletMat = CreateURPMaterial("Mat_Brawl_Bullet", new Color(1f, 0.85f, 0.1f), 0.9f);
-            Material aimMat = CreateURPMaterial("Mat_Brawl_Aim", new Color(1f, 0.3f, 0.2f, 0.7f), 0.1f);
+            // RenderSettings ambient
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.55f, 0.72f, 0.90f);
+            RenderSettings.ambientEquatorColor = new Color(0.35f, 0.55f, 0.30f);
+            RenderSettings.ambientGroundColor = new Color(0.20f, 0.28f, 0.18f);
 
-            // 2. Floor Plane (Lantai Lapangan Brawl Stars)
-            GameObject arenaRoot = new GameObject("Arena_BrawlStars");
+            // Materials
+            Material grassMat = CreateURPMaterial("Mat_Brawl_Grass", new Color(0.24f, 0.65f, 0.28f), 0.15f);
+            Material wallMat = CreateURPMaterial("Mat_Brawl_Wall", new Color(0.42f, 0.48f, 0.56f), 0.35f);
+            Material crateMat = CreateURPMaterial("Mat_Brawl_Crate", new Color(0.74f, 0.50f, 0.28f), 0.25f);
+            Material bushMat = CreateURPMaterial("Mat_Brawl_Bush", new Color(0.12f, 0.48f, 0.18f, 0.9f), 0.2f);
+            Material gemMat = CreateURPMaterial("Mat_Brawl_Gem", new Color(0.1f, 1f, 0.5f), 0.9f);
+            Material mineMat = CreateURPMaterial("Mat_Brawl_Mine", new Color(0.25f, 0.22f, 0.35f), 0.4f);
+            Material bulletBlueMat = CreateURPMaterial("Mat_Brawl_BulletBlue", new Color(0f, 0.9f, 1f), 0.95f);
+            Material bulletRedMat = CreateURPMaterial("Mat_Brawl_BulletRed", new Color(1f, 0.3f, 0.3f), 0.95f);
+            Material aimMat = CreateURPMaterial("Mat_Brawl_Aim", new Color(1f, 0.35f, 0.15f, 0.75f), 0.1f);
+
+            // 2. Arena Root & Floor Plane
+            GameObject arenaRoot = new GameObject("Arena_GemGrab_32x32");
             GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
             floor.name = "Floor_Plane";
             floor.transform.parent = arenaRoot.transform;
@@ -58,35 +84,55 @@ namespace MultiverseArcade.EditorTools
             floor.transform.localScale = new Vector3(3.2f, 1f, 3.2f); // 32x32 m
             floor.GetComponent<Renderer>().sharedMaterial = grassMat;
 
-            // 3. Batas Tembok Luar (Wall Tag)
+            // 3. Batas Tembok Luar (Tagged Wall)
             CreateWall(arenaRoot.transform, "Wall_North", new Vector3(0, 1.25f, 16f), new Vector3(34, 2.5f, 2), wallMat);
             CreateWall(arenaRoot.transform, "Wall_South", new Vector3(0, 1.25f, -16f), new Vector3(34, 2.5f, 2), wallMat);
             CreateWall(arenaRoot.transform, "Wall_East", new Vector3(16f, 1.25f, 0), new Vector3(2, 2.5f, 32), wallMat);
             CreateWall(arenaRoot.transform, "Wall_West", new Vector3(-16f, 1.25f, 0), new Vector3(2, 2.5f, 32), wallMat);
 
-            // 4. Rintangan Tembok & Peti Kayu di Dalam Arena (Sesuai Layout Brawl Stars)
-            // Tengah (Center choke points)
-            CreateWall(arenaRoot.transform, "Wall_CenterLeft", new Vector3(-4f, 1f, 0), new Vector3(1.5f, 2f, 4f), wallMat);
-            CreateWall(arenaRoot.transform, "Wall_CenterRight", new Vector3(4f, 1f, 0), new Vector3(1.5f, 2f, 4f), wallMat);
-            CreateWall(arenaRoot.transform, "Crate_CenterTop", new Vector3(0, 0.75f, 3f), new Vector3(2f, 1.5f, 1.5f), crateMat);
-            CreateWall(arenaRoot.transform, "Crate_CenterBottom", new Vector3(0, 0.75f, -3f), new Vector3(2f, 1.5f, 1.5f), crateMat);
+            // 4. Rintangan Tembok & Peti Kayu Sesuai Layout Gem Grab
+            // Pilar Kiri & Kanan Tengah
+            CreateWall(arenaRoot.transform, "Wall_CenterLeft", new Vector3(-4.5f, 1f, 0), new Vector3(1.6f, 2f, 4.5f), wallMat);
+            CreateWall(arenaRoot.transform, "Wall_CenterRight", new Vector3(4.5f, 1f, 0), new Vector3(1.6f, 2f, 4.5f), wallMat);
 
-            // Flanks (Kiri & Kanan)
-            CreateWall(arenaRoot.transform, "Wall_FlankNorthWest", new Vector3(-8f, 1f, 7f), new Vector3(3f, 2f, 1.5f), wallMat);
-            CreateWall(arenaRoot.transform, "Wall_FlankSouthEast", new Vector3(8f, 1f, -7f), new Vector3(3f, 2f, 1.5f), wallMat);
-            CreateWall(arenaRoot.transform, "Wall_FlankNorthEast", new Vector3(8f, 1f, 7f), new Vector3(3f, 2f, 1.5f), wallMat);
-            CreateWall(arenaRoot.transform, "Wall_FlankSouthWest", new Vector3(-8f, 1f, -7f), new Vector3(3f, 2f, 1.5f), wallMat);
+            // Peti Kayu di Atas & Bawah Tambang
+            CreateWall(arenaRoot.transform, "Crate_CenterNorth", new Vector3(0, 0.75f, 3.5f), new Vector3(2.5f, 1.5f, 1.5f), crateMat);
+            CreateWall(arenaRoot.transform, "Crate_CenterSouth", new Vector3(0, 0.75f, -3.5f), new Vector3(2.5f, 1.5f, 1.5f), crateMat);
 
-            // 5. Semak-Semak (Bush.cs dengan Collider isTrigger)
-            CreateBushPatch(arenaRoot.transform, "Bush_CenterLeft", new Vector3(-4f, 0.5f, -4f), new Vector3(3.5f, 1f, 3f), bushMat);
-            CreateBushPatch(arenaRoot.transform, "Bush_CenterRight", new Vector3(4f, 0.5f, 4f), new Vector3(3.5f, 1f, 3f), bushMat);
-            CreateBushPatch(arenaRoot.transform, "Bush_FlankWest", new Vector3(-11f, 0.5f, 0), new Vector3(2.5f, 1f, 8f), bushMat);
-            CreateBushPatch(arenaRoot.transform, "Bush_FlankEast", new Vector3(11f, 0.5f, 0), new Vector3(2.5f, 1f, 8f), bushMat);
+            // Flanks Luar
+            CreateWall(arenaRoot.transform, "Wall_NW", new Vector3(-8.5f, 1f, 7.5f), new Vector3(3.5f, 2f, 1.5f), wallMat);
+            CreateWall(arenaRoot.transform, "Wall_SE", new Vector3(8.5f, 1f, -7.5f), new Vector3(3.5f, 2f, 1.5f), wallMat);
+            CreateWall(arenaRoot.transform, "Wall_NE", new Vector3(8.5f, 1f, 7.5f), new Vector3(3.5f, 2f, 1.5f), wallMat);
+            CreateWall(arenaRoot.transform, "Wall_SW", new Vector3(-8.5f, 1f, -7.5f), new Vector3(3.5f, 2f, 1.5f), wallMat);
 
-            // 6. Prefab Peluru (Sphere kecil + Rigidbody Kinematic + Collider isTrigger + Projectile)
-            Projectile projPrefab = CreateProjectilePrefab(bulletMat);
+            // 5. Semak-Semak Stealth (Bush.cs dengan isTrigger Collider)
+            CreateBushPatch(arenaRoot.transform, "Bush_CenterLeft", new Vector3(-4.5f, 0.5f, -4f), new Vector3(3.5f, 1f, 3.2f), bushMat);
+            CreateBushPatch(arenaRoot.transform, "Bush_CenterRight", new Vector3(4.5f, 0.5f, 4f), new Vector3(3.5f, 1f, 3.2f), bushMat);
+            CreateBushPatch(arenaRoot.transform, "Bush_WestFlank", new Vector3(-11.5f, 0.5f, 0), new Vector3(2.5f, 1f, 8f), bushMat);
+            CreateBushPatch(arenaRoot.transform, "Bush_EastFlank", new Vector3(11.5f, 0.5f, 0), new Vector3(2.5f, 1f, 8f), bushMat);
 
-            // 7. UI Canvas (Screen Space - Overlay) dengan Dua Joystick & HUD
+            // 6. Prefabs: Gem & Peluru
+            Gem gemPrefab = CreateGemPrefab(gemMat);
+            Projectile playerProjPrefab = CreateProjectilePrefab("PF_BrawlBullet_Player", bulletBlueMat);
+            Projectile enemyProjPrefab = CreateProjectilePrefab("PF_BrawlBullet_Enemy", bulletRedMat);
+
+            // 7. Gem Mine di Tengah Arena
+            GameObject mineGo = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            mineGo.name = "GemMine_Center";
+            mineGo.transform.parent = arenaRoot.transform;
+            mineGo.transform.position = new Vector3(0, 0.15f, 0);
+            mineGo.transform.localScale = new Vector3(2.8f, 0.3f, 2.8f);
+            mineGo.GetComponent<Renderer>().sharedMaterial = mineMat;
+            Object.DestroyImmediate(mineGo.GetComponent<Collider>());
+
+            GemMine gemMine = mineGo.AddComponent<GemMine>();
+            gemMine.Setup(gemPrefab, 7.0f);
+
+            // 8. GemGrabManager
+            GameObject managerGo = new GameObject("GemGrabManager");
+            GemGrabManager gemManager = managerGo.AddComponent<GemGrabManager>();
+
+            // 9. UI Canvas Overlay
             GameObject canvasGo = new GameObject("Canvas_BrawlHUD");
             Canvas canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -95,54 +141,34 @@ namespace MultiverseArcade.EditorTools
             scaler.referenceResolution = new Vector2(1920, 1080);
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            // Left Joystick (Movement)
+            // Joysticks
             VirtualJoystick leftStick = CreateVirtualJoystick(canvasGo.transform, "Joystick_Move", new Vector2(250, 250), new Color(0.1f, 0.55f, 0.95f, 0.5f), new Color(0.2f, 0.75f, 1f, 0.85f));
-
-            // Right Joystick (Aim & Shoot)
             VirtualJoystick rightStick = CreateVirtualJoystick(canvasGo.transform, "Joystick_Aim", new Vector2(-250, 250), new Color(0.95f, 0.35f, 0.15f, 0.5f), new Color(1f, 0.55f, 0.2f, 0.85f));
 
-            // 8. Player: Capsule + CharacterController + PlayerController + AimController + Hideable
+            // 10. Player (Blue Team, teamId = 0)
             GameObject playerGo = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             playerGo.name = "Player_Brawler";
-            playerGo.transform.position = new Vector3(0, 1.0f, -10f); // Spawn di sisi Selatan
+            playerGo.transform.position = new Vector3(0, 1.0f, -10f); // Spawn Selatan
+            playerGo.layer = unitLayer;
 
             CharacterController cc = playerGo.AddComponent<CharacterController>();
             cc.radius = 0.5f;
             cc.height = 1.8f;
-            cc.center = new Vector3(0, 0, 0);
+            cc.center = Vector3.zero;
 
-            // Model Visual Child
+            // Visual Model
             GameObject modelGo = new GameObject("VisualModel");
             modelGo.transform.parent = playerGo.transform;
             modelGo.transform.localPosition = new Vector3(0, -0.9f, 0);
-
-            // Ganti renderer capsule default ke model visual
             MeshRenderer playerMr = playerGo.GetComponent<MeshRenderer>();
             if (playerMr != null) playerMr.enabled = false;
 
-            // Load 3D model FBX jika ada
             GameObject charFbx = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Games/Syafiq/Models/Characters/characterMedium.fbx");
-            Texture2D skinTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Games/Syafiq/Textures/Skins/skin_soldier.png");
-            if (skinTex != null) playerMat.mainTexture = skinTex;
+            Texture2D soldierSkin = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Games/Syafiq/Textures/Skins/skin_soldier.png");
+            Material pVisMat = CreateURPMaterial("Mat_Player_Soldier", Color.white, 0.5f);
+            if (soldierSkin != null) pVisMat.mainTexture = soldierSkin;
 
-            if (charFbx != null)
-            {
-                GameObject fbxInst = (GameObject)Object.Instantiate(charFbx, modelGo.transform);
-                fbxInst.name = "CharacterMesh";
-                fbxInst.transform.localPosition = Vector3.zero;
-                fbxInst.transform.localRotation = Quaternion.identity;
-                foreach (var r in fbxInst.GetComponentsInChildren<Renderer>()) r.sharedMaterial = playerMat;
-                foreach (var c in fbxInst.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c);
-            }
-            else
-            {
-                // Fallback visual capsule
-                GameObject vis = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                vis.transform.parent = modelGo.transform;
-                vis.transform.localPosition = new Vector3(0, 0.9f, 0);
-                vis.GetComponent<Renderer>().sharedMaterial = playerMat;
-                Object.DestroyImmediate(vis.GetComponent<Collider>());
-            }
+            Attach3DModel(modelGo.transform, charFbx, pVisMat, Quaternion.identity);
 
             PlayerController pc = playerGo.AddComponent<PlayerController>();
             pc.SetMoveStick(leftStick);
@@ -163,28 +189,34 @@ namespace MultiverseArcade.EditorTools
             Object.DestroyImmediate(aimLine.GetComponent<Collider>());
             aimLine.SetActive(false);
 
-            // AimController
             AimController ac = playerGo.AddComponent<AimController>();
-            LayerMask enemyMask = LayerMask.GetMask("Syafiq_Enemy", "Default");
-            ac.Setup(rightStick, pc, muzzleGo.transform, projPrefab, aimLine.transform, enemyMask);
+            ac.Setup(rightStick, pc, muzzleGo.transform, playerProjPrefab, aimLine.transform, unitMask);
 
-            // Health & Hideable
             Health playerHp = playerGo.AddComponent<Health>();
             playerHp.Max = 3600;
             playerHp.Current = 3600;
 
+            GemCarrier playerCarrier = playerGo.AddComponent<GemCarrier>();
+            playerCarrier.teamId = 0;
+            playerCarrier.SetGemPrefab(gemPrefab);
+
             Hideable playerHide = playerGo.AddComponent<Hideable>();
             playerHide.Setup(true);
 
-            // 9. Enemy Bots (Target dummy & musuh)
-            CreateEnemyBot(new Vector3(-6f, 1.0f, 8f), enemyMat, projPrefab);
-            CreateEnemyBot(new Vector3(6f, 1.0f, 8f), enemyMat, projPrefab);
-            CreateEnemyBot(new Vector3(0f, 1.0f, 10f), enemyMat, projPrefab);
+            // 11. Bots (3v3 Match)
+            // Blue Teammates (teamId = 0)
+            CreateBotUnit("BlueBot_1", 0, new Vector3(-5f, 1.0f, -10f), unitLayer, unitMask, playerProjPrefab, gemPrefab, "skin_adventurer.png");
+            CreateBotUnit("BlueBot_2", 0, new Vector3(5f, 1.0f, -10f), unitLayer, unitMask, playerProjPrefab, gemPrefab, "cyborgFemaleA.png");
 
-            // 10. HUD Ammo & Health Slider
-            CreateHUDUI(canvasGo.transform, ac, playerHp);
+            // Red Enemies (teamId = 1)
+            CreateBotUnit("RedBot_1", 1, new Vector3(0f, 1.0f, 10f), unitLayer, unitMask, enemyProjPrefab, gemPrefab, "skin_robot.png");
+            CreateBotUnit("RedBot_2", 1, new Vector3(-5f, 1.0f, 10f), unitLayer, unitMask, enemyProjPrefab, gemPrefab, "criminalMaleA.png");
+            CreateBotUnit("RedBot_3", 1, new Vector3(5f, 1.0f, 10f), unitLayer, unitMask, enemyProjPrefab, gemPrefab, "skin_orc.png");
 
-            // 11. Main Camera dengan CameraFollow
+            // 12. HUD UI Setup
+            CreateBrawlHUD(canvasGo.transform, ac, playerHp, playerCarrier, gemManager);
+
+            // 13. CameraFollow
             GameObject camGo = GameObject.FindWithTag("MainCamera");
             if (camGo == null)
             {
@@ -193,12 +225,11 @@ namespace MultiverseArcade.EditorTools
                 camGo.AddComponent<Camera>();
             }
             camGo.transform.position = new Vector3(0, 14f, -19f);
-
             CameraFollow camFollow = camGo.GetComponent<CameraFollow>();
             if (camFollow == null) camFollow = camGo.AddComponent<CameraFollow>();
             camFollow.SetTarget(playerGo.transform, rightStick);
 
-            // 12. EventSystem
+            // 14. EventSystem
             if (Object.FindObjectOfType<UnityEngine.EventSystems.EventSystem>() == null)
             {
                 GameObject es = new GameObject("EventSystem");
@@ -206,9 +237,16 @@ namespace MultiverseArcade.EditorTools
                 es.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
             }
 
+            // 15. Bake NavMeshSurface
+            NavMeshSurface navSurface = arenaRoot.AddComponent<NavMeshSurface>();
+            navSurface.collectObjects = CollectObjects.All;
+            navSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
+            navSurface.BuildNavMesh();
+            Debug.Log("[BrawlStarsSceneBuilder] NavMeshSurface Gem Grab berhasil dibake!");
+
             // Simpan Scene
             EditorSceneManager.SaveScene(scene, SCENE_PATH);
-            Debug.Log($"[BrawlStarsSceneBuilder] Scene berhasil dibangun dan disimpan ke {SCENE_PATH}!");
+            Debug.Log($"[BrawlStarsSceneBuilder] Scene Gem Grab berhasil disimpan ke {SCENE_PATH}!");
         }
 
         private static GameObject CreateWall(Transform parent, string name, Vector3 pos, Vector3 size, Material mat)
@@ -236,7 +274,6 @@ namespace MultiverseArcade.EditorTools
 
             bushGo.AddComponent<Bush>();
 
-            // Visual semak low-poly
             GameObject vis = GameObject.CreatePrimitive(PrimitiveType.Cube);
             vis.name = "BushVisual";
             vis.transform.parent = bushGo.transform;
@@ -248,12 +285,34 @@ namespace MultiverseArcade.EditorTools
             return bushGo;
         }
 
-        private static Projectile CreateProjectilePrefab(Material mat)
+        private static Gem CreateGemPrefab(Material mat)
         {
-            string path = $"{PREFAB_DIR}/PF_BrawlBullet.prefab";
+            string path = $"{PREFAB_DIR}/PF_BrawlGem.prefab";
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = "PF_BrawlGem";
+            go.transform.localScale = new Vector3(0.45f, 0.6f, 0.45f);
+            go.transform.rotation = Quaternion.Euler(45, 45, 0);
+            go.GetComponent<Renderer>().sharedMaterial = mat;
+
+            Collider col = go.GetComponent<Collider>();
+            col.isTrigger = true;
+
+            Rigidbody rb = go.AddComponent<Rigidbody>();
+            rb.isKinematic = true;
+
+            Gem g = go.AddComponent<Gem>();
+
+            GameObject prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
+            Object.DestroyImmediate(go);
+            return prefab.GetComponent<Gem>();
+        }
+
+        private static Projectile CreateProjectilePrefab(string name, Material mat)
+        {
+            string path = $"{PREFAB_DIR}/{name}.prefab";
             GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            go.name = "PF_BrawlBullet";
-            go.transform.localScale = Vector3.one * 0.45f;
+            go.name = name;
+            go.transform.localScale = Vector3.one * 0.4f;
             go.GetComponent<Renderer>().sharedMaterial = mat;
 
             Collider col = go.GetComponent<Collider>();
@@ -269,57 +328,80 @@ namespace MultiverseArcade.EditorTools
             return prefab.GetComponent<Projectile>();
         }
 
-        private static GameObject CreateEnemyBot(Vector3 pos, Material mat, Projectile projPrefab)
+        private static GameObject CreateBotUnit(string name, int teamId, Vector3 pos, int layer, LayerMask mask, Projectile proj, Gem gemPrefab, string skinName)
         {
             GameObject bot = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            bot.name = "Enemy_Bot";
+            bot.name = name;
             bot.transform.position = pos;
+            bot.layer = layer;
 
-            int enemyLayer = LayerMask.NameToLayer("Syafiq_Enemy");
-            if (enemyLayer >= 0) bot.layer = enemyLayer;
+            MeshRenderer mr = bot.GetComponent<MeshRenderer>();
+            if (mr != null) mr.enabled = false;
 
             CharacterController cc = bot.AddComponent<CharacterController>();
             cc.radius = 0.5f;
             cc.height = 1.8f;
+            cc.center = Vector3.zero;
+
+            NavMeshAgent agent = bot.AddComponent<NavMeshAgent>();
+            agent.speed = 4.2f;
+            agent.radius = 0.5f;
+            agent.height = 1.8f;
+            agent.stoppingDistance = 0.2f;
 
             // Visual Model
             GameObject modelGo = new GameObject("VisualModel");
             modelGo.transform.parent = bot.transform;
             modelGo.transform.localPosition = new Vector3(0, -0.9f, 0);
 
-            MeshRenderer mr = bot.GetComponent<MeshRenderer>();
-            if (mr != null) mr.enabled = false;
-
             GameObject charFbx = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Games/Syafiq/Models/Characters/characterMedium.fbx");
-            Texture2D skinTex = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Games/Syafiq/Textures/Skins/skin_robot.png");
-            if (skinTex != null) mat.mainTexture = skinTex;
+            Texture2D skinTex = AssetDatabase.LoadAssetAtPath<Texture2D>($"Assets/Games/Syafiq/Textures/Skins/{skinName}");
+            Material bMat = CreateURPMaterial($"Mat_{name}", teamId == 0 ? new Color(0.2f, 0.7f, 1f) : new Color(1f, 0.3f, 0.3f), 0.5f);
+            if (skinTex != null) bMat.mainTexture = skinTex;
 
-            if (charFbx != null)
-            {
-                GameObject fbxInst = (GameObject)Object.Instantiate(charFbx, modelGo.transform);
-                fbxInst.name = "BotMesh";
-                fbxInst.transform.localPosition = Vector3.zero;
-                fbxInst.transform.localRotation = Quaternion.Euler(0, 180, 0);
-                foreach (var r in fbxInst.GetComponentsInChildren<Renderer>()) r.sharedMaterial = mat;
-                foreach (var c in fbxInst.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c);
-            }
-            else
-            {
-                GameObject vis = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                vis.transform.parent = modelGo.transform;
-                vis.transform.localPosition = new Vector3(0, 0.9f, 0);
-                vis.GetComponent<Renderer>().sharedMaterial = mat;
-                Object.DestroyImmediate(vis.GetComponent<Collider>());
-            }
+            Attach3DModel(modelGo.transform, charFbx, bMat, Quaternion.Euler(0, teamId == 0 ? 0 : 180, 0));
+
+            // Muzzle
+            GameObject muzzleGo = new GameObject("Muzzle");
+            muzzleGo.transform.parent = bot.transform;
+            muzzleGo.transform.localPosition = new Vector3(0, 0.2f, 0.8f);
 
             Health hp = bot.AddComponent<Health>();
             hp.Max = 3200;
             hp.Current = 3200;
 
+            GemCarrier carrier = bot.AddComponent<GemCarrier>();
+            carrier.teamId = teamId;
+            carrier.SetGemPrefab(gemPrefab);
+
             Hideable hide = bot.AddComponent<Hideable>();
             hide.Setup(false);
 
+            BotAI ai = bot.AddComponent<BotAI>();
+            ai.Setup(proj, muzzleGo.transform, mask);
+
             return bot;
+        }
+
+        private static void Attach3DModel(Transform parent, GameObject fbx, Material mat, Quaternion rot)
+        {
+            if (fbx != null)
+            {
+                GameObject inst = (GameObject)Object.Instantiate(fbx, parent);
+                inst.name = "Mesh";
+                inst.transform.localPosition = Vector3.zero;
+                inst.transform.localRotation = rot;
+                foreach (var r in inst.GetComponentsInChildren<Renderer>()) r.sharedMaterial = mat;
+                foreach (var c in inst.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c);
+            }
+            else
+            {
+                GameObject vis = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                vis.transform.parent = parent;
+                vis.transform.localPosition = new Vector3(0, 0.9f, 0);
+                vis.GetComponent<Renderer>().sharedMaterial = mat;
+                Object.DestroyImmediate(vis.GetComponent<Collider>());
+            }
         }
 
         private static VirtualJoystick CreateVirtualJoystick(Transform parent, string name, Vector2 anchoredPos, Color bgColor, Color handleColor)
@@ -357,25 +439,130 @@ namespace MultiverseArcade.EditorTools
             return vj;
         }
 
-        private static void CreateHUDUI(Transform canvasTrans, AimController ac, Health hp)
+        private static void CreateBrawlHUD(Transform canvasTrans, AimController ac, Health hp, GemCarrier carrier, GemGrabManager manager)
         {
             GameObject hudGo = new GameObject("BrawlHUD");
             hudGo.transform.parent = canvasTrans;
             RectTransform hudRt = hudGo.AddComponent<RectTransform>();
-            hudRt.anchorMin = new Vector2(0.5f, 0);
-            hudRt.anchorMax = new Vector2(0.5f, 0);
-            hudRt.anchoredPosition = new Vector2(0, 70);
-            hudRt.sizeDelta = new Vector2(300, 80);
+            hudRt.anchorMin = Vector2.zero;
+            hudRt.anchorMax = Vector2.one;
+            hudRt.sizeDelta = Vector2.zero;
 
             BrawlHUD hud = hudGo.AddComponent<BrawlHUD>();
 
-            // Ammo Container (3 Bars)
-            GameObject ammoContainer = new GameObject("AmmoContainer");
-            ammoContainer.transform.parent = hudGo.transform;
-            RectTransform ammoRt = ammoContainer.AddComponent<RectTransform>();
-            ammoRt.anchoredPosition = new Vector2(0, 20);
-            ammoRt.sizeDelta = new Vector2(240, 16);
+            // --- Top Header: Gem Counters ---
+            GameObject topPanel = new GameObject("TopPanel_Gems");
+            topPanel.transform.parent = hudGo.transform;
+            RectTransform topRt = topPanel.AddComponent<RectTransform>();
+            topRt.anchorMin = new Vector2(0.5f, 1f);
+            topRt.anchorMax = new Vector2(0.5f, 1f);
+            topRt.anchoredPosition = new Vector2(0, -50);
+            topRt.sizeDelta = new Vector2(400, 60);
 
+            // Blue Gem Score Box
+            GameObject blueBox = new GameObject("BlueGems");
+            blueBox.transform.parent = topPanel.transform;
+            RectTransform blueRt = blueBox.AddComponent<RectTransform>();
+            blueRt.anchoredPosition = new Vector2(-110, 0);
+            blueRt.sizeDelta = new Vector2(140, 50);
+            Image blueBg = blueBox.AddComponent<Image>();
+            blueBg.color = new Color(0.05f, 0.45f, 0.85f, 0.9f);
+
+            GameObject blueTxtGo = new GameObject("ScoreText");
+            blueTxtGo.transform.parent = blueBox.transform;
+            RectTransform bTxtRt = blueTxtGo.AddComponent<RectTransform>();
+            bTxtRt.sizeDelta = new Vector2(140, 50);
+            Text bTxt = blueTxtGo.AddComponent<Text>();
+            bTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            bTxt.fontSize = 28;
+            bTxt.fontStyle = FontStyle.Bold;
+            bTxt.alignment = TextAnchor.MiddleCenter;
+            bTxt.color = Color.white;
+            bTxt.text = "BLUE: 0";
+
+            // Red Gem Score Box
+            GameObject redBox = new GameObject("RedGems");
+            redBox.transform.parent = topPanel.transform;
+            RectTransform redRt = redBox.AddComponent<RectTransform>();
+            redRt.anchoredPosition = new Vector2(110, 0);
+            redRt.sizeDelta = new Vector2(140, 50);
+            Image redBg = redBox.AddComponent<Image>();
+            redBg.color = new Color(0.85f, 0.2f, 0.2f, 0.9f);
+
+            GameObject redTxtGo = new GameObject("ScoreText");
+            redTxtGo.transform.parent = redBox.transform;
+            RectTransform rTxtRt = redTxtGo.AddComponent<RectTransform>();
+            rTxtRt.sizeDelta = new Vector2(140, 50);
+            Text rTxt = redTxtGo.AddComponent<Text>();
+            rTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            rTxt.fontSize = 28;
+            rTxt.fontStyle = FontStyle.Bold;
+            rTxt.alignment = TextAnchor.MiddleCenter;
+            rTxt.color = Color.white;
+            rTxt.text = "RED: 0";
+
+            // --- Countdown Banner ---
+            GameObject cdBanner = new GameObject("CountdownBanner");
+            cdBanner.transform.parent = hudGo.transform;
+            RectTransform cdRt = cdBanner.AddComponent<RectTransform>();
+            cdRt.anchorMin = new Vector2(0.5f, 1f);
+            cdRt.anchorMax = new Vector2(0.5f, 1f);
+            cdRt.anchoredPosition = new Vector2(0, -120);
+            cdRt.sizeDelta = new Vector2(500, 50);
+            Image cdBg = cdBanner.AddComponent<Image>();
+            cdBg.color = new Color(0.1f, 0.1f, 0.15f, 0.85f);
+
+            GameObject cdTxtGo = new GameObject("CountdownText");
+            cdTxtGo.transform.parent = cdBanner.transform;
+            RectTransform cdTxtRt = cdTxtGo.AddComponent<RectTransform>();
+            cdTxtRt.sizeDelta = new Vector2(500, 50);
+            Text cdTxt = cdTxtGo.AddComponent<Text>();
+            cdTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            cdTxt.fontSize = 26;
+            cdTxt.fontStyle = FontStyle.Bold;
+            cdTxt.alignment = TextAnchor.MiddleCenter;
+            cdTxt.color = Color.yellow;
+            cdTxt.text = "COUNTDOWN: 15s";
+
+            // --- Match End Banner ---
+            GameObject endBanner = new GameObject("MatchEndBanner");
+            endBanner.transform.parent = hudGo.transform;
+            RectTransform endRt = endBanner.AddComponent<RectTransform>();
+            endRt.anchorMin = new Vector2(0.5f, 0.5f);
+            endRt.anchorMax = new Vector2(0.5f, 0.5f);
+            endRt.anchoredPosition = Vector2.zero;
+            endRt.sizeDelta = new Vector2(600, 200);
+            Image endBg = endBanner.AddComponent<Image>();
+            endBg.color = new Color(0.08f, 0.08f, 0.12f, 0.95f);
+
+            GameObject endTitleGo = new GameObject("Title");
+            endTitleGo.transform.parent = endBanner.transform;
+            RectTransform etRt = endTitleGo.AddComponent<RectTransform>();
+            etRt.sizeDelta = new Vector2(550, 100);
+            etRt.anchoredPosition = new Vector2(0, 30);
+            Text etTxt = endTitleGo.AddComponent<Text>();
+            etTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            etTxt.fontSize = 54;
+            etTxt.fontStyle = FontStyle.Bold;
+            etTxt.alignment = TextAnchor.MiddleCenter;
+            etTxt.color = Color.white;
+            etTxt.text = "VICTORY!";
+
+            // --- Bottom Center: Ammo & HP & Carried Gems ---
+            GameObject bottomPanel = new GameObject("BottomPanel_Status");
+            bottomPanel.transform.parent = hudGo.transform;
+            RectTransform bpRt = bottomPanel.AddComponent<RectTransform>();
+            bpRt.anchorMin = new Vector2(0.5f, 0f);
+            bpRt.anchorMax = new Vector2(0.5f, 0f);
+            bpRt.anchoredPosition = new Vector2(0, 75);
+            bpRt.sizeDelta = new Vector2(320, 100);
+
+            // Ammo 3 Segments
+            GameObject ammoContainer = new GameObject("AmmoContainer");
+            ammoContainer.transform.parent = bottomPanel.transform;
+            RectTransform ammoRt = ammoContainer.AddComponent<RectTransform>();
+            ammoRt.anchoredPosition = new Vector2(0, 25);
+            ammoRt.sizeDelta = new Vector2(240, 16);
             HorizontalLayoutGroup hlg = ammoContainer.AddComponent<HorizontalLayoutGroup>();
             hlg.spacing = 8f;
             hlg.childControlWidth = true;
@@ -392,21 +579,20 @@ namespace MultiverseArcade.EditorTools
 
             // Health Slider
             GameObject hpGo = new GameObject("HealthBar");
-            hpGo.transform.parent = hudGo.transform;
+            hpGo.transform.parent = bottomPanel.transform;
             RectTransform hpRt = hpGo.AddComponent<RectTransform>();
-            hpRt.anchoredPosition = new Vector2(0, -15);
+            hpRt.anchoredPosition = new Vector2(0, -5);
             hpRt.sizeDelta = new Vector2(240, 22);
 
             Slider slider = hpGo.AddComponent<Slider>();
-
-            GameObject bg = new GameObject("Background");
-            bg.transform.parent = hpGo.transform;
-            RectTransform bgrt = bg.AddComponent<RectTransform>();
-            bgrt.anchorMin = Vector2.zero;
-            bgrt.anchorMax = Vector2.one;
-            bgrt.sizeDelta = Vector2.zero;
-            Image bgImg = bg.AddComponent<Image>();
-            bgImg.color = new Color(0.15f, 0.15f, 0.15f, 0.8f);
+            GameObject hpBg = new GameObject("Background");
+            hpBg.transform.parent = hpGo.transform;
+            RectTransform hpBgRt = hpBg.AddComponent<RectTransform>();
+            hpBgRt.anchorMin = Vector2.zero;
+            hpBgRt.anchorMax = Vector2.one;
+            hpBgRt.sizeDelta = Vector2.zero;
+            Image hpBgImg = hpBg.AddComponent<Image>();
+            hpBgImg.color = new Color(0.15f, 0.15f, 0.15f, 0.85f);
 
             GameObject fill = new GameObject("Fill");
             fill.transform.parent = hpGo.transform;
@@ -415,15 +601,47 @@ namespace MultiverseArcade.EditorTools
             fillRt.anchorMax = Vector2.one;
             fillRt.sizeDelta = Vector2.zero;
             Image fillImg = fill.AddComponent<Image>();
-            fillImg.color = new Color(0.2f, 0.9f, 0.3f, 1f);
-
-            slider.targetGraphic = fillImg;
+            fillImg.color = new Color(0.2f, 0.9f, 0.35f, 1f);
             slider.fillRect = fillRt;
 
-            // Bind to BrawlHUD
+            GameObject hpTxtGo = new GameObject("HpText");
+            hpTxtGo.transform.parent = hpGo.transform;
+            RectTransform hpTxtRt = hpTxtGo.AddComponent<RectTransform>();
+            hpTxtRt.sizeDelta = new Vector2(240, 22);
+            Text hpTxt = hpTxtGo.AddComponent<Text>();
+            hpTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            hpTxt.fontSize = 14;
+            hpTxt.fontStyle = FontStyle.Bold;
+            hpTxt.alignment = TextAnchor.MiddleCenter;
+            hpTxt.color = Color.white;
+
+            // Player Carried Gems Text
+            GameObject pGemsGo = new GameObject("PlayerGemsText");
+            pGemsGo.transform.parent = bottomPanel.transform;
+            RectTransform pgRt = pGemsGo.AddComponent<RectTransform>();
+            pgRt.anchoredPosition = new Vector2(0, -32);
+            pgRt.sizeDelta = new Vector2(240, 22);
+            Text pGemsTxt = pGemsGo.AddComponent<Text>();
+            pGemsTxt.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            pGemsTxt.fontSize = 16;
+            pGemsTxt.fontStyle = FontStyle.Bold;
+            pGemsTxt.alignment = TextAnchor.MiddleCenter;
+            pGemsTxt.color = new Color(0.1f, 1f, 0.5f);
+            pGemsTxt.text = "Gems: 0";
+
+            // Bind Fields
             SetPrivateField(hud, "ammoSegments", segs);
             SetPrivateField(hud, "healthSlider", slider);
-            hud.Bind(ac, hp);
+            SetPrivateField(hud, "healthText", hpTxt);
+            SetPrivateField(hud, "playerGemsText", pGemsTxt);
+            SetPrivateField(hud, "blueGemsText", bTxt);
+            SetPrivateField(hud, "redGemsText", rTxt);
+            SetPrivateField(hud, "countdownBanner", cdBanner);
+            SetPrivateField(hud, "countdownText", cdTxt);
+            SetPrivateField(hud, "matchEndBanner", endBanner);
+            SetPrivateField(hud, "matchEndTitle", etTxt);
+
+            hud.Bind(ac, hp, carrier, manager);
         }
 
         private static Material CreateURPMaterial(string name, Color color, float smoothness = 0.5f)
