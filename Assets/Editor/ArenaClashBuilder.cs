@@ -569,9 +569,11 @@ namespace MultiverseArcade.EditorTools
         #endregion
 
         #region Arena Geometry, NavMesh & Power-Ups
+        private const string NATURE_MODELS_DIR = "Assets/Games/Syafiq/Models/Nature";
+
         private static GameObject BuildArenaBlockout()
         {
-            GameObject arenaRoot = new GameObject("Arena_Blockout_30x30");
+            GameObject arenaRoot = new GameObject("Arena_Jungle_30x30");
 
             int groundLayer = LayerMask.NameToLayer("Syafiq_Ground");
             if (groundLayer < 0) groundLayer = LayerMask.NameToLayer("Default");
@@ -579,39 +581,271 @@ namespace MultiverseArcade.EditorTools
             int wallLayer = LayerMask.NameToLayer("Syafiq_Wall");
             if (wallLayer < 0) wallLayer = LayerMask.NameToLayer("Default");
 
-            // 1. Floor (30 x 30)
+            // Jungle & Ancient Ruins Materials
+            Material groundMat = CreateURPMaterial("Mat_Jungle_Floor", new Color(0.18f, 0.30f, 0.14f), 0.25f);
+            Material outerGroundMat = CreateURPMaterial("Mat_Jungle_OuterFloor", new Color(0.10f, 0.20f, 0.08f), 0.15f);
+            Material stoneMat = CreateURPMaterial("Mat_Jungle_Stone", new Color(0.40f, 0.44f, 0.38f), 0.35f);
+            Material foliageMat = CreateURPMaterial("Mat_Jungle_Foliage", new Color(0.20f, 0.52f, 0.16f), 0.4f);
+            Material woodMat = CreateURPMaterial("Mat_Jungle_Wood", new Color(0.34f, 0.24f, 0.15f), 0.2f);
+            Material cliffMat = CreateURPMaterial("Mat_Jungle_Cliff", new Color(0.30f, 0.32f, 0.28f), 0.3f);
+
+            // 1. Floor (30 x 30 Main Arena)
             GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            floor.name = "Floor_30x30";
+            floor.name = "Floor_Jungle_30x30";
             floor.transform.parent = arenaRoot.transform;
             floor.transform.position = new Vector3(0, -0.5f, 0);
             floor.transform.localScale = new Vector3(30, 1, 30);
             floor.layer = groundLayer;
-            Material floorMat = CreateURPMaterial("Mat_Arena_Floor", new Color(0.08f, 0.10f, 0.15f), 0.3f);
-            floor.GetComponent<Renderer>().sharedMaterial = floorMat;
+            floor.GetComponent<Renderer>().sharedMaterial = groundMat;
 
-            // 2. Boundary Walls
-            Material wallMat = CreateURPMaterial("Mat_Arena_Wall", new Color(0.15f, 0.20f, 0.28f), 0.5f);
-            CreateWall(arenaRoot.transform, "Wall_North", new Vector3(0, 1.25f, 15.5f), new Vector3(32, 2.5f, 2), wallMat, wallLayer);
-            CreateWall(arenaRoot.transform, "Wall_South", new Vector3(0, 1.25f, -15.5f), new Vector3(32, 2.5f, 2), wallMat, wallLayer);
-            CreateWall(arenaRoot.transform, "Wall_East", new Vector3(15.5f, 1.25f, 0), new Vector3(2, 2.5f, 30), wallMat, wallLayer);
-            CreateWall(arenaRoot.transform, "Wall_West", new Vector3(-15.5f, 1.25f, 0), new Vector3(2, 2.5f, 30), wallMat, wallLayer);
+            // Outer Jungle Skirt (64 x 64) - Prevents camera seeing void horizon
+            GameObject outerFloor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            outerFloor.name = "Floor_OuterJungle_Skirt";
+            outerFloor.transform.parent = arenaRoot.transform;
+            outerFloor.transform.position = new Vector3(0, -0.6f, 0);
+            outerFloor.transform.localScale = new Vector3(64, 1, 64);
+            Object.DestroyImmediate(outerFloor.GetComponent<Collider>());
+            outerFloor.GetComponent<Renderer>().sharedMaterial = outerGroundMat;
 
-            // 3. Central Zone Covers (5 Obstacles simetris)
-            Material coverMat = CreateURPMaterial("Mat_Arena_Cover", new Color(0.25f, 0.35f, 0.5f), 0.6f);
-            CreateCover(arenaRoot.transform, "Cover_Center", new Vector3(0, 1f, 0), new Vector3(3f, 2f, 3f), coverMat, wallLayer);
-            CreateCover(arenaRoot.transform, "Cover_NorthWest", new Vector3(-6f, 1f, 5f), new Vector3(3.5f, 2f, 2f), coverMat, wallLayer);
-            CreateCover(arenaRoot.transform, "Cover_SouthEast", new Vector3(6f, 1f, -5f), new Vector3(3.5f, 2f, 2f), coverMat, wallLayer);
-            CreateCover(arenaRoot.transform, "Cover_NorthEast", new Vector3(6f, 1f, 5f), new Vector3(2f, 2f, 3.5f), coverMat, wallLayer);
-            CreateCover(arenaRoot.transform, "Cover_SouthWest", new Vector3(-6f, 1f, -5f), new Vector3(2f, 2f, 3.5f), coverMat, wallLayer);
+            // Ancient Stone Courtyard Pathway (Center Cross)
+            CreateStonePathways(arenaRoot.transform, stoneMat, groundLayer);
 
-            // 4. NavMeshSurface Baking
+            // 2. Boundary Cliffs & Ancient Perimeter Walls
+            BuildJunglePerimeter(arenaRoot.transform, cliffMat, stoneMat, foliageMat, wallLayer);
+
+            // 3. Central Zone Covers (5 Obstacles Simetris Berbasis Model 3D)
+            BuildJungleCovers(arenaRoot.transform, stoneMat, foliageMat, woodMat, wallLayer);
+
+            // 4. Background Lush Jungle Scenery (Outside Combat Area)
+            BuildJungleBackdropScenery(arenaRoot.transform, foliageMat, stoneMat, woodMat);
+
+            // 5. Pencahayaan & Suasana Hutan Tropis
+            SetupJungleLighting();
+
+            // 6. NavMeshSurface Baking
             NavMeshSurface navSurface = arenaRoot.AddComponent<NavMeshSurface>();
             navSurface.collectObjects = CollectObjects.All;
             navSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
             navSurface.BuildNavMesh();
-            Debug.Log("[ArenaClashBuilder] NavMeshSurface berhasil dibake!");
+            Debug.Log("[ArenaClashBuilder] NavMeshSurface Jungle Arena berhasil dibake!");
 
             return arenaRoot;
+        }
+
+        private static void CreateStonePathways(Transform parent, Material stoneMat, int groundLayer)
+        {
+            GameObject pathRoot = new GameObject("Stone_Pathways");
+            pathRoot.transform.parent = parent;
+
+            // Jalur Tengah Z (Utara - Selatan)
+            GameObject pathZ = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            pathZ.name = "Path_NorthSouth";
+            pathZ.transform.parent = pathRoot.transform;
+            pathZ.transform.position = new Vector3(0, -0.48f, 0);
+            pathZ.transform.localScale = new Vector3(3.2f, 1f, 26f);
+            pathZ.layer = groundLayer;
+            pathZ.GetComponent<Renderer>().sharedMaterial = stoneMat;
+
+            // Jalur Tengah X (Barat - Timur)
+            GameObject pathX = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            pathX.name = "Path_EastWest";
+            pathX.transform.parent = pathRoot.transform;
+            pathX.transform.position = new Vector3(0, -0.47f, 0);
+            pathX.transform.localScale = new Vector3(26f, 1f, 3.2f);
+            pathX.layer = groundLayer;
+            pathX.GetComponent<Renderer>().sharedMaterial = stoneMat;
+
+            // Lingkaran Tengah Kuil (Plaza Altar)
+            GameObject centerPlaza = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            centerPlaza.name = "Plaza_CenterAltar";
+            centerPlaza.transform.parent = pathRoot.transform;
+            centerPlaza.transform.position = new Vector3(0, -0.46f, 0);
+            centerPlaza.transform.localScale = new Vector3(7.5f, 0.5f, 7.5f);
+            centerPlaza.layer = groundLayer;
+            centerPlaza.GetComponent<Renderer>().sharedMaterial = stoneMat;
+        }
+
+        private static void BuildJunglePerimeter(Transform parent, Material cliffMat, Material stoneMat, Material foliageMat, int wallLayer)
+        {
+            GameObject perimRoot = new GameObject("Perimeter_Cliffs");
+            perimRoot.transform.parent = parent;
+
+            // Functional Boundary Physics Colliders (32x2.5x2)
+            CreateWall(perimRoot.transform, "Wall_North", new Vector3(0, 1.25f, 15.5f), new Vector3(32, 2.5f, 2), cliffMat, wallLayer);
+            CreateWall(perimRoot.transform, "Wall_South", new Vector3(0, 1.25f, -15.5f), new Vector3(32, 2.5f, 2), cliffMat, wallLayer);
+            CreateWall(perimRoot.transform, "Wall_East", new Vector3(15.5f, 1.25f, 0), new Vector3(2, 2.5f, 30), cliffMat, wallLayer);
+            CreateWall(perimRoot.transform, "Wall_West", new Vector3(-15.5f, 1.25f, 0), new Vector3(2, 2.5f, 30), cliffMat, wallLayer);
+
+            // 3D Visual Cliff Rocks along the North & South Walls
+            for (float x = -13.5f; x <= 13.5f; x += 4.5f)
+            {
+                SpawnNatureProp(perimRoot.transform, "cliff_large_rock", new Vector3(x, 0, 15.2f), new Vector3(0, 180, 0), new Vector3(2.2f, 2.2f, 2.2f), cliffMat);
+                SpawnNatureProp(perimRoot.transform, "cliff_large_rock", new Vector3(x, 0, -15.2f), Vector3.zero, new Vector3(2.2f, 2.2f, 2.2f), cliffMat);
+                SpawnNatureProp(perimRoot.transform, "plant_bushLarge", new Vector3(x + 1.2f, 0, 14.2f), new Vector3(0, Random.Range(0, 360), 0), Vector3.one * 1.5f, foliageMat);
+                SpawnNatureProp(perimRoot.transform, "plant_bushLarge", new Vector3(x - 1.2f, 0, -14.2f), new Vector3(0, Random.Range(0, 360), 0), Vector3.one * 1.5f, foliageMat);
+            }
+
+            // 3D Visual Cliff Rocks along East & West Walls
+            for (float z = -11.5f; z <= 11.5f; z += 4.5f)
+            {
+                SpawnNatureProp(perimRoot.transform, "cliff_large_rock", new Vector3(15.2f, 0, z), new Vector3(0, -90, 0), new Vector3(2.2f, 2.2f, 2.2f), cliffMat);
+                SpawnNatureProp(perimRoot.transform, "cliff_large_rock", new Vector3(-15.2f, 0, z), new Vector3(0, 90, 0), new Vector3(2.2f, 2.2f, 2.2f), cliffMat);
+                SpawnNatureProp(perimRoot.transform, "plant_bushLarge", new Vector3(14.2f, 0, z + 1.2f), new Vector3(0, Random.Range(0, 360), 0), Vector3.one * 1.5f, foliageMat);
+                SpawnNatureProp(perimRoot.transform, "plant_bushLarge", new Vector3(-14.2f, 0, z - 1.2f), new Vector3(0, Random.Range(0, 360), 0), Vector3.one * 1.5f, foliageMat);
+            }
+        }
+
+        private static void BuildJungleCovers(Transform parent, Material stoneMat, Material foliageMat, Material woodMat, int wallLayer)
+        {
+            GameObject coversRoot = new GameObject("Jungle_Covers");
+            coversRoot.transform.parent = parent;
+
+            // 1. Cover Center (3x2x3) - Altar Kuil Kuno & Pilar Reruntuhan
+            GameObject covCenter = CreateCover(coversRoot.transform, "Cover_Center", new Vector3(0, 1f, 0), new Vector3(3f, 2f, 3f), stoneMat, wallLayer);
+            covCenter.GetComponent<Renderer>().enabled = false; // Gunakan model visual 3D
+            SpawnNatureProp(covCenter.transform, "statue_block", Vector3.zero, Vector3.zero, new Vector3(2.4f, 1.2f, 2.4f), stoneMat);
+            SpawnNatureProp(covCenter.transform, "statue_columnDamaged", new Vector3(0, 0.6f, 0), new Vector3(0, 45, 0), new Vector3(1.8f, 1.8f, 1.8f), stoneMat);
+            SpawnNatureProp(covCenter.transform, "rock_largeB", new Vector3(0.9f, -0.4f, 0.9f), new Vector3(0, 30, 0), new Vector3(1.2f, 1.2f, 1.2f), stoneMat);
+            SpawnNatureProp(covCenter.transform, "plant_bushLarge", new Vector3(-0.8f, -0.4f, -0.8f), Vector3.zero, Vector3.one * 1.1f, foliageMat);
+
+            // 2. Cover North-West (-6, 1, 5, size 3.5x2x2) - Formasi Batu Tebing & Semak
+            GameObject covNW = CreateCover(coversRoot.transform, "Cover_NorthWest", new Vector3(-6f, 1f, 5f), new Vector3(3.5f, 2f, 2f), stoneMat, wallLayer);
+            covNW.GetComponent<Renderer>().enabled = false;
+            SpawnNatureProp(covNW.transform, "rock_largeA", new Vector3(-0.5f, -0.4f, 0), new Vector3(0, 25, 0), new Vector3(1.8f, 1.6f, 1.6f), stoneMat);
+            SpawnNatureProp(covNW.transform, "rock_tallA", new Vector3(0.6f, -0.4f, 0), new Vector3(0, -40, 0), new Vector3(1.4f, 1.5f, 1.4f), stoneMat);
+            SpawnNatureProp(covNW.transform, "plant_bushLarge", new Vector3(0, -0.4f, 0.4f), Vector3.zero, Vector3.one * 1.2f, foliageMat);
+
+            // 3. Cover South-East (6, 1, -5, size 3.5x2x2) - Simetris NW
+            GameObject covSE = CreateCover(coversRoot.transform, "Cover_SouthEast", new Vector3(6f, 1f, -5f), new Vector3(3.5f, 2f, 2f), stoneMat, wallLayer);
+            covSE.GetComponent<Renderer>().enabled = false;
+            SpawnNatureProp(covSE.transform, "rock_largeA", new Vector3(0.5f, -0.4f, 0), new Vector3(0, 205, 0), new Vector3(1.8f, 1.6f, 1.6f), stoneMat);
+            SpawnNatureProp(covSE.transform, "rock_tallA", new Vector3(-0.6f, -0.4f, 0), new Vector3(0, 140, 0), new Vector3(1.4f, 1.5f, 1.4f), stoneMat);
+            SpawnNatureProp(covSE.transform, "plant_bushLarge", new Vector3(0, -0.4f, -0.4f), Vector3.zero, Vector3.one * 1.2f, foliageMat);
+
+            // 4. Cover North-East (6, 1, 5, size 2x2x3.5) - Pilar Kuil Runtuh & Batang Kayu Purba
+            GameObject covNE = CreateCover(coversRoot.transform, "Cover_NorthEast", new Vector3(6f, 1f, 5f), new Vector3(2f, 2f, 3.5f), stoneMat, wallLayer);
+            covNE.GetComponent<Renderer>().enabled = false;
+            SpawnNatureProp(covNE.transform, "statue_column", new Vector3(0, -0.4f, -0.6f), new Vector3(0, 15, 0), new Vector3(1.6f, 1.7f, 1.6f), stoneMat);
+            SpawnNatureProp(covNE.transform, "log_large", new Vector3(0, -0.5f, 0.5f), new Vector3(0, 90, 0), new Vector3(1.4f, 1.4f, 1.4f), woodMat);
+            SpawnNatureProp(covNE.transform, "plant_bushLarge", new Vector3(0.3f, -0.4f, 0), Vector3.zero, Vector3.one * 1.1f, foliageMat);
+
+            // 5. Cover South-West (-6, 1, -5, size 2x2x3.5) - Simetris NE
+            GameObject covSW = CreateCover(coversRoot.transform, "Cover_SouthWest", new Vector3(-6f, 1f, -5f), new Vector3(2f, 2f, 3.5f), stoneMat, wallLayer);
+            covSW.GetComponent<Renderer>().enabled = false;
+            SpawnNatureProp(covSW.transform, "statue_column", new Vector3(0, -0.4f, 0.6f), new Vector3(0, 195, 0), new Vector3(1.6f, 1.7f, 1.6f), stoneMat);
+            SpawnNatureProp(covSW.transform, "log_large", new Vector3(0, -0.5f, -0.5f), new Vector3(0, -90, 0), new Vector3(1.4f, 1.4f, 1.4f), woodMat);
+            SpawnNatureProp(covSW.transform, "plant_bushLarge", new Vector3(-0.3f, -0.4f, 0), Vector3.zero, Vector3.one * 1.1f, foliageMat);
+        }
+
+        private static void BuildJungleBackdropScenery(Transform parent, Material foliageMat, Material stoneMat, Material woodMat)
+        {
+            GameObject backdropRoot = new GameObject("Backdrop_Jungle_Horizon");
+            backdropRoot.transform.parent = parent;
+
+            // Barisan Pohon Palem & Hutan Rimbun di Luar Arena (Koordinat 17 s.d. 28)
+            Vector3[] treePositions = new Vector3[]
+            {
+                // Sisi Utara
+                new Vector3(-18f, 0, 19f), new Vector3(-12f, 0, 21f), new Vector3(-6f, 0, 19.5f),
+                new Vector3(0f, 0, 22f), new Vector3(6f, 0, 19.5f), new Vector3(12f, 0, 21f), new Vector3(18f, 0, 19f),
+                new Vector3(-9f, 0, 25f), new Vector3(3f, 0, 26f), new Vector3(15f, 0, 24f),
+
+                // Sisi Selatan
+                new Vector3(-18f, 0, -19f), new Vector3(-12f, 0, -21f), new Vector3(-6f, 0, -19.5f),
+                new Vector3(0f, 0, -22f), new Vector3(6f, 0, -19.5f), new Vector3(12f, 0, -21f), new Vector3(18f, 0, -19f),
+                new Vector3(-15f, 0, -24f), new Vector3(-3f, 0, -26f), new Vector3(9f, 0, -25f),
+
+                // Sisi Barat
+                new Vector3(-19.5f, 0, -12f), new Vector3(-21f, 0, -6f), new Vector3(-20f, 0, 0f),
+                new Vector3(-21f, 0, 6f), new Vector3(-19.5f, 0, 12f), new Vector3(-25f, 0, -3f), new Vector3(-26f, 0, 7f),
+
+                // Sisi Timur
+                new Vector3(19.5f, 0, -12f), new Vector3(21f, 0, -6f), new Vector3(20f, 0, 0f),
+                new Vector3(21f, 0, 6f), new Vector3(19.5f, 0, 12f), new Vector3(25f, 0, 3f), new Vector3(26f, 0, -7f)
+            };
+
+            string[] palmTypes = new string[] { "tree_palm", "tree_palmTall", "tree_palmBend", "tree_palmShort" };
+
+            for (int i = 0; i < treePositions.Length; i++)
+            {
+                string palmModel = palmTypes[i % palmTypes.Length];
+                float randomYaw = (i * 47f) % 360f;
+                float randomScale = 1.3f + ((i % 5) * 0.12f);
+                SpawnNatureProp(backdropRoot.transform, palmModel, treePositions[i], new Vector3(0, randomYaw, 0), Vector3.one * randomScale, foliageMat);
+
+                // Tambahkan rumpun semak & rumput di bawah pohon
+                Vector3 bushPos = treePositions[i] + new Vector3(((i % 3) - 1) * 1.1f, 0, ((i % 2 == 0) ? 0.8f : -0.8f));
+                SpawnNatureProp(backdropRoot.transform, "plant_bushLarge", bushPos, new Vector3(0, randomYaw + 30f, 0), Vector3.one * 1.3f, foliageMat);
+                SpawnNatureProp(backdropRoot.transform, "grass_large", treePositions[i] + new Vector3(0.5f, 0, -0.5f), Vector3.zero, Vector3.one * 1.5f, foliageMat);
+            }
+
+            // Statues & Obelisk Kuno di Sudut Luar Arena
+            SpawnNatureProp(backdropRoot.transform, "statue_obelisk", new Vector3(-17f, 0, 17f), new Vector3(0, 45, 0), Vector3.one * 1.8f, stoneMat);
+            SpawnNatureProp(backdropRoot.transform, "statue_obelisk", new Vector3(17f, 0, 17f), new Vector3(0, -45, 0), Vector3.one * 1.8f, stoneMat);
+            SpawnNatureProp(backdropRoot.transform, "statue_obelisk", new Vector3(-17f, 0, -17f), new Vector3(0, 135, 0), Vector3.one * 1.8f, stoneMat);
+            SpawnNatureProp(backdropRoot.transform, "statue_obelisk", new Vector3(17f, 0, -17f), new Vector3(0, -135, 0), Vector3.one * 1.8f, stoneMat);
+        }
+
+        private static GameObject SpawnNatureProp(Transform parent, string modelName, Vector3 pos, Vector3 rot, Vector3 scale, Material overrideMat = null)
+        {
+            string path = $"{NATURE_MODELS_DIR}/{modelName}.fbx";
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (prefab == null)
+            {
+                Debug.LogWarning($"[ArenaClashBuilder] Nature model tidak ditemukan: {path}");
+                return null;
+            }
+
+            GameObject instance = (GameObject)Object.Instantiate(prefab, parent);
+            instance.name = modelName;
+            instance.transform.position = pos;
+            instance.transform.rotation = Quaternion.Euler(rot);
+            instance.transform.localScale = scale;
+
+            // Hapus collider bawaan FBX agar fisika dan NavMesh hanya dikontrol oleh collider resmi
+            foreach (var col in instance.GetComponentsInChildren<Collider>())
+            {
+                Object.DestroyImmediate(col);
+            }
+
+            if (overrideMat != null)
+            {
+                foreach (var ren in instance.GetComponentsInChildren<Renderer>())
+                {
+                    ren.sharedMaterial = overrideMat;
+                }
+            }
+
+            return instance;
+        }
+
+        private static void SetupJungleLighting()
+        {
+            // Atur Directional Light bernuansa matahari tropis hangat
+            Light[] lights = Object.FindObjectsOfType<Light>();
+            Light dirLight = null;
+            foreach (var l in lights)
+            {
+                if (l.type == LightType.Directional)
+                {
+                    dirLight = l;
+                    break;
+                }
+            }
+
+            if (dirLight != null)
+            {
+                dirLight.color = new Color(1.0f, 0.94f, 0.82f);
+                dirLight.intensity = 1.25f;
+                dirLight.shadows = LightShadows.Soft;
+                dirLight.transform.rotation = Quaternion.Euler(48f, -38f, 0f);
+            }
+
+            // Atur Ambient Trilight bernuansa kanopi hutan alami
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = new Color(0.48f, 0.68f, 0.88f);
+            RenderSettings.ambientEquatorColor = new Color(0.32f, 0.48f, 0.28f);
+            RenderSettings.ambientGroundColor = new Color(0.18f, 0.24f, 0.16f);
         }
 
         private static void CreatePowerUps(Transform parent)
@@ -619,20 +853,22 @@ namespace MultiverseArcade.EditorTools
             GameObject powerUpRoot = new GameObject("PowerUps");
             powerUpRoot.transform.parent = parent;
 
+            Material pedestalMat = CreateURPMaterial("Mat_Jungle_Pedestal", new Color(0.38f, 0.42f, 0.35f), 0.35f);
+
             // 1. Health Pack (-6, 0.5, 6) -> +40 HP, respawn 20s
             CreatePowerUpObject(powerUpRoot.transform, "PowerUp_HealthPack", PowerUpType.HealthPack,
-                new Vector3(-6f, 0.5f, 6f), new Color(0.1f, 0.9f, 0.3f), PrimitiveType.Cube, 20f);
+                new Vector3(-6f, 0.5f, 6f), new Color(0.1f, 0.95f, 0.35f), PrimitiveType.Cube, 20f, pedestalMat);
 
             // 2. Speed Boost (6, 0.5, -6) -> Haste 4s, respawn 25s
             CreatePowerUpObject(powerUpRoot.transform, "PowerUp_SpeedBoost", PowerUpType.SpeedBoost,
-                new Vector3(6f, 0.5f, -6f), new Color(0f, 0.85f, 1f), PrimitiveType.Cylinder, 25f);
+                new Vector3(6f, 0.5f, -6f), new Color(0f, 0.88f, 1f), PrimitiveType.Cylinder, 25f, pedestalMat);
 
             // 3. Damage Boost (0, 0.5, 0) -> Damage Boost +30% 5s, respawn 30s
             CreatePowerUpObject(powerUpRoot.transform, "PowerUp_DamageBoost", PowerUpType.DamageBoost,
-                new Vector3(0f, 0.5f, 0f), new Color(1f, 0.45f, 0.1f), PrimitiveType.Sphere, 30f);
+                new Vector3(0f, 0.5f, 0f), new Color(1f, 0.45f, 0.1f), PrimitiveType.Sphere, 30f, pedestalMat);
         }
 
-        private static GameObject CreatePowerUpObject(Transform parent, string name, PowerUpType type, Vector3 pos, Color col, PrimitiveType meshType, float respawnTime)
+        private static GameObject CreatePowerUpObject(Transform parent, string name, PowerUpType type, Vector3 pos, Color col, PrimitiveType meshType, float respawnTime, Material pedestalMat = null)
         {
             GameObject go = new GameObject(name);
             go.transform.parent = parent;
@@ -642,6 +878,16 @@ namespace MultiverseArcade.EditorTools
             sc.isTrigger = true;
             sc.radius = 1.0f;
 
+            // Ancient Stone Relic Pedestal
+            GameObject pedestal = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            pedestal.name = "StonePedestal";
+            pedestal.transform.parent = go.transform;
+            pedestal.transform.position = new Vector3(pos.x, -0.42f, pos.z);
+            pedestal.transform.localScale = new Vector3(1.4f, 0.12f, 1.4f);
+            Object.DestroyImmediate(pedestal.GetComponent<Collider>());
+            if (pedestalMat != null) pedestal.GetComponent<Renderer>().sharedMaterial = pedestalMat;
+
+            // Power-Up Floating Crystal / Relic Visual
             GameObject visual = GameObject.CreatePrimitive(meshType);
             visual.name = "Visual";
             visual.transform.parent = go.transform;
@@ -651,7 +897,7 @@ namespace MultiverseArcade.EditorTools
             Collider visCol = visual.GetComponent<Collider>();
             if (visCol != null) Object.DestroyImmediate(visCol);
 
-            Material mat = CreateURPMaterial($"Mat_{name}", col, 0.75f);
+            Material mat = CreateURPMaterial($"Mat_{name}", col, 0.85f);
             visual.GetComponent<Renderer>().sharedMaterial = mat;
 
             PowerUpItem pui = go.AddComponent<PowerUpItem>();
@@ -978,9 +1224,10 @@ namespace MultiverseArcade.EditorTools
             GameObject lightGo = new GameObject("Directional Light");
             Light l = lightGo.AddComponent<Light>();
             l.type = LightType.Directional;
-            l.color = new Color(0.92f, 0.96f, 1f);
-            l.intensity = 1.15f;
-            lightGo.transform.rotation = Quaternion.Euler(55, -35, 0);
+            l.color = new Color(1.0f, 0.94f, 0.82f);
+            l.intensity = 1.25f;
+            l.shadows = LightShadows.Soft;
+            lightGo.transform.rotation = Quaternion.Euler(48f, -38f, 0f);
         }
 
         private static void CreateEventSystem()

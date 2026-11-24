@@ -15,6 +15,7 @@ namespace MultiverseArcade.EditorTools
         private const string UI_SPRITES_DIR = "Assets/Games/Syafiq/UI/Sprites";
         private const string SKINS_DIR = "Assets/Games/Syafiq/Textures/Skins";
         private const string MODELS_DIR = "Assets/Games/Syafiq/Models/Characters";
+        private const string NATURE_DIR = "Assets/Games/Syafiq/Models/Nature";
 
         [MenuItem("Tools/Multiverse Arcade/Configure Arena Clash Assets", false, 10)]
         public static void ConfigureAllAssets()
@@ -22,6 +23,7 @@ namespace MultiverseArcade.EditorTools
             ConfigureUISprites();
             ConfigureSkinTextures();
             ConfigureCharacterModels();
+            ConfigureNatureModels();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
             Debug.Log("[ArenaAssetSetup] Konfigurasi Texture & Model Arena Clash selesai!");
@@ -100,6 +102,32 @@ namespace MultiverseArcade.EditorTools
             if (!Directory.Exists(MODELS_DIR)) return;
 
             string[] files = Directory.GetFiles(MODELS_DIR, "*.fbx", SearchOption.AllDirectories);
+            foreach (var file in files)
+            {
+                string assetPath = file.Replace('\\', '/');
+                ModelImporter importer = AssetImporter.GetAtPath(assetPath) as ModelImporter;
+                if (importer != null)
+                {
+                    bool changed = false;
+                    if (!importer.isReadable)
+                    {
+                        importer.isReadable = true;
+                        changed = true;
+                    }
+                    if (changed)
+                    {
+                        EditorUtility.SetDirty(importer);
+                        importer.SaveAndReimport();
+                    }
+                }
+            }
+        }
+
+        public static void ConfigureNatureModels()
+        {
+            if (!Directory.Exists(NATURE_DIR)) return;
+
+            string[] files = Directory.GetFiles(NATURE_DIR, "*.fbx", SearchOption.AllDirectories);
             foreach (var file in files)
             {
                 string assetPath = file.Replace('\\', '/');
